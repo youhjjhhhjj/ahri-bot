@@ -8,7 +8,6 @@
   },
   "author": "Ninfrock",
   "license": "ISC",
-	"scripts":{},
   "dependencies": {
     "discord.js": "^13.1.0",
 	"pg": "^8.7.3"

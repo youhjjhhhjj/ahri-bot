@@ -1,0 +1,20 @@
+{
+  "name": "raibot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ninfrock",
+  "license": "ISC",
+	"scripts":{},
+  "dependencies": {
+    "discord.js": "^13.1.0",
+	"pg": "^8.7.3"
+  },
+  "engines": {
+   "node": "16.x",
+   "npm": "7.x"
+	}
+}

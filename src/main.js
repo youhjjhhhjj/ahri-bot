@@ -116,15 +116,9 @@ async function verifyEmail(email, username)
         let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [email])
         // console.log(result)
         if(result.rows.length == 0) // email does not exist
-        {            
-            try {
-                await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.username} ) VALUES ( $1, $2 ) ;`, [email, username])
-                return 0
-            }
-            catch (err)
-            {
-                console.error(err.stack)
-            }
+        {
+            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.username} ) VALUES ( $1, $2 ) ;`, [email, username])
+            return 0
         }
         else // email already exists
         {
@@ -187,39 +181,48 @@ async function tryVerification(cn, email, username)
     {
         case 0:
             cn.send(`${username} added to database with email ${email}`);
-            return 'Verification request received, you will be verified within 24 hours if valid'
+            return 'Verification request received, now cast your vote'
         case 1:
             cn.send(`${username} tried to verify with existing unverified email ${email}`);
-            return 'Verification request received, you will be verified within 24 hours if valid'
+            return 'An unknown error occured, please contact staff'
         case 2:
-            let guild = bot.guilds.cache.get(serverid);
+            try
+            {
+                let guild = bot.guilds.cache.get(serverid);
 
-            if (!guild) return cn.send("Failed to find guild");
+                if (!guild) return cn.send("Failed to find guild");
 
-            let user = bot.users.cache.find(u => {
+                let user = bot.users.cache.find(u => {
 
-                console.log(u.tag, username);
-                return u.tag === username;
-            });
+                    // console.log(u.tag, username);
+                    return u.tag === username;
+                });
 
-            if (!user) return cn.send("Failed to find user");
+                if (!user) return cn.send("Failed to find user");
 
-            let member = await guild.members.fetch(user.id);
+                let member = await guild.members.fetch(user.id);
 
-            if (!member) return cn.send("Failed to find member");
-            
-            let role1 = guild.roles.cache.find(r => r.name == '.');
-            let role2 = guild.roles.cache.find(r => r.name == 'Donator');
-            
-            if (!role1) return cn.send("Failed to find role");
-            if (!role2) return cn.send("Failed to find role");
+                if (!member) return cn.send("Failed to find member");
+                
+                let role1 = guild.roles.cache.find(r => r.name == '.');
+                let role2 = guild.roles.cache.find(r => r.name == 'Donator');
+                
+                if (!role1) return cn.send("Failed to find role");
+                if (!role2) return cn.send("Failed to find role");
 
-            member.roles.add(role1);
-            member.roles.add(role2);
+                member.roles.add(role1);
+                member.roles.add(role2);
 
-            cn.send(`${username} verified successfully with email ${email}`);
+                cn.send(`${username} verified successfully with email ${email}`);
 
-            return 'Successfully verified'
+                return 'Successfully verified'
+            }
+            catch (err)
+            {
+                console.error(err.stack)
+                cn.send(`An unknown error occured while trying to verify ${username} with email ${email}`);
+                return 'An unknown error occured, please try again later'
+            }
         case 3:
             cn.send(`${username} attempted to verify with already verified email ${email}`);
             return 'You have already been verified'
@@ -241,7 +244,7 @@ bot.on("messageCreate", async (message) =>
     if(message.author.id == bot.user.id) return;
     if(!message.guild)
     {
-        console.log("DM: " + message.content);
+        console.log(message.author.tag + ": " + message.content);
         // try {
         //     let result = await pg_client.query(message.content)
         //     console.log(result)
@@ -293,7 +296,7 @@ bot.on("messageCreate", async (message) =>
             {"name": "6: Xayah (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
             {"name": "7: Garen (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
         ];
-        pg_client.query(`SELECT vote, CAST(SUM(amount) AS FLOAT) / MAX(total) AS vote_percent FROM ${table_metadata.name} CROSS JOIN (SELECT SUM(amount) AS total FROM ${table_metadata.name}) AS Total GROUP BY vote, total ORDER BY vote`).then(async (result) => {
+        pg_client.query(`SELECT vote, CAST(SUM(amount) AS FLOAT) / MAX(total) AS vote_percent FROM ${table_metadata.name} CROSS JOIN (SELECT SUM(amount) AS total FROM ${table_metadata.name} WHERE ${table_metadata.vote} IS NOT NULL) AS Total GROUP BY vote, total ORDER BY vote`).then(async (result) => {
             for (let i = 0; i < result.rows.length; i++)
             {
                 if (vote_options.includes(parseInt(result.rows[i][table_metadata.vote])))
@@ -326,7 +329,7 @@ bot.on("messageCreate", async (message) =>
     if (cmd == "addemail")
     {
         let em = param[0].trim().toLowerCase();
-        let amount = parseInt(param[1].trim())
+        let amount = parseInt((param[1] || "10").trim())
         addNewEmail(em, amount).then((result) => {
             switch (result)
             {

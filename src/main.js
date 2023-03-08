@@ -67,7 +67,7 @@ async function addNewEmail(email, amount)
         
                     let user = bot.users.cache.find(u => {
         
-                        // console.log(u.tag, result.rows[0][table_metadata.username]);
+                        console.log(u.tag, result.rows[0][table_metadata.username]);
                         return u.tag === result.rows[0][table_metadata.username];
                     });
         

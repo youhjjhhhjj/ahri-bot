@@ -245,30 +245,30 @@ bot.on("messageCreate", async (message) =>
     if(!message.guild)
     {
         console.log(message.author.tag + ": " + message.content);
-        // try {
-        //     let result = await pg_client.query(message.content)
-        //     console.log(result)
-        // } catch (err) {
-        //     console.error(err.stack)
-        // }
-        let contents = message.content.trim()
-        let cn = bot.channels.cache.get(debugchid);
-        if(!cn) return console.log('failed to find channel')
-        if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents))
-        {
-            let verification_message = await tryVerification(cn, contents, message.author.tag);
-            bot.users.fetch(message.author.id, false).then((user) => {
-                user.send(verification_message);
-            });
+        try {
+            let contents = message.content.trim()
+            let cn = bot.channels.cache.get(debugchid);
+            if(!cn) return console.log('failed to find channel')
+            if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents))
+            {
+                let verification_message = await tryVerification(cn, contents, message.author.tag);
+                bot.users.fetch(message.author.id, false).then((user) => {
+                    user.send(verification_message);
+                });
+            }
+            else if (vote_options.includes(parseInt(contents)))
+            {
+                let vote_message = await registerVote(cn, message.author.tag, contents);
+                bot.users.fetch(message.author.id, false).then((user) => {
+                    user.send(vote_message);
+                });
+            }
+            return;
         }
-        else if (vote_options.includes(parseInt(contents)))
+        catch (err)
         {
-            let vote_message = await registerVote(cn, message.author.tag, contents);
-            bot.users.fetch(message.author.id, false).then((user) => {
-                user.send(vote_message);
-            });
+            console.error(err.stack)
         }
-        return;
     }
 
     if(!message.guild || !message.content.startsWith("!")) return;

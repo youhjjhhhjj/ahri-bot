@@ -61,30 +61,7 @@ async function addNewEmail(email, amount)
                 {
                     await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.verified} = $1, ${table_metadata.amount} = $2 WHERE ${table_metadata.email} = $3 ;`, [true, amount, email])
                     
-                    let guild = bot.guilds.cache.get(serverid);
-
-                    if (!guild) return cn.send("Failed to find guild");
-        
-                    let user = bot.users.cache.find(u => {
-        
-                        console.log(u.tag, result.rows[0][table_metadata.username]);
-                        return u.tag === result.rows[0][table_metadata.username];
-                    });
-        
-                    if (!user) return cn.send("Failed to find user");
-        
-                    let member = await guild.members.fetch(user.id);
-        
-                    if (!member) return cn.send("Failed to find member");
-                    
-                    let role1 = guild.roles.cache.find(r => r.name == '.');
-                    let role2 = guild.roles.cache.find(r => r.name == 'Donator');
-                    
-                    if (!role1) return cn.send("Failed to find role");
-                    if (!role2) return cn.send("Failed to find role");
-        
-                    member.roles.add(role1);
-                    member.roles.add(role2);
+                    cn.send(`Please add roles to ${result.rows[0][table_metadata.username]} manually`);
 
                     return 1
                 }
@@ -340,6 +317,8 @@ bot.on("messageCreate", async (message) =>
                     message.channel.send(`${em} has been verified`);
                     break;
                 case 2:
+                    message.channel.send(`${em} donation amount has been updated`);
+                    break;
                 case 3:
                     message.channel.send(`${em} was already added`);
                     break;

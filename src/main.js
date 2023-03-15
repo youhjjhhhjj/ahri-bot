@@ -181,7 +181,7 @@ async function tryVerification(cn, email, username)
 
                 if (!member) return cn.send("Failed to find member");
                 
-                let role1 = guild.roles.cache.find(r => r.name == '.');
+                let role1 = guild.roles.cache.find(r => r.name == 'Cool');
                 let role2 = guild.roles.cache.find(r => r.name == 'Donator');
                 
                 if (!role1) return cn.send("Failed to find role");
@@ -208,6 +208,14 @@ async function tryVerification(cn, email, username)
             return 'An unknown error occured, please contact staff'
     }
 }
+
+pg_client.on('error', (err) => {
+    console.error("Database connection dropped, reconnecting...", err.stack)
+    pg_client
+        .connect()
+        .then(() => console.log('connected'))
+        .catch(err => console.error('connection error', err.stack))
+})
 
 
 bot.on("ready", async () =>
@@ -305,9 +313,11 @@ bot.on("messageCreate", async (message) =>
 
     if (cmd == "addemail")
     {
-        let em = param[0].trim().toLowerCase();
-        let amount = parseInt((param[1] || "10").trim())
-        addNewEmail(em, amount).then((result) => {
+        try
+        {
+            let em = param[0].trim().toLowerCase();
+            let amount = parseInt((param[1] || "10").trim())
+            addNewEmail(em, amount).then((result) => {
             switch (result)
             {
                 case 0:
@@ -327,6 +337,11 @@ bot.on("messageCreate", async (message) =>
 
             }
         });
+        }
+        catch (err)
+        {
+            console.error(err.stack)
+        }
     }
 
     if (cmd == "querydb")
@@ -340,59 +355,11 @@ bot.on("messageCreate", async (message) =>
                     const e = splitstuff[chunk];
                     await message.channel.send(e);
                 }
-            }
-            
+            }            
         }).catch(err => {
             console.error(err.stack)
             message.channel.send("Query error")
         });
-    }
-
-    if(cmd == "verify") // !verify @someone, will check if verified + no roles, add roles if thats the case
-    {
-        pg_client.query(`SELECT ${table_metadata.username} FROM ${table_metadata.name} WHERE ${table_metadata.verified} = TRUE ;`).then(async (result) => {
-
-
-            const user = message.mentions.users.first();
-            const member = message.mentions.members.first();
-            if (!user) return;
-            if (!member) return message.channel.send("Failed to find member");
-            let guild = bot.guilds.cache.get(serverid);
-
-            if (!guild) return message.channel.send("Failed to find guild");
-
-            let role1 = guild.roles.cache.find(r => r.name == '.');
-            let role2 = guild.roles.cache.find(r => r.name == 'Donator');
-
-            for (const key in result.rows) {
-                if (Object.hasOwnProperty.call(result.rows, key)) {
-                    const e = result.rows[key];
-                    console.log(e);
-
-                    if(user.tag.toLowerCase() == e)
-                    {
-
-                        if (!member.roles.cache.some(role => role.name == '.'))
-                        {
-                            member.roles.add(role1);
-                            console.log(`Added role to: ${user.tag}`)
-                            
-                        }
-
-                        if (!member.roles.cache.some(role => role.name == 'Donator'))
-                        {
-                            member.roles.add(role2);
-                            console.log(`Added role to: ${user.tag}`)
-                        }
-                    }
-                }
-            }
-        }).catch(err => {
-
-            console.log(err);
-            message.channel.send("Query error")
-        });
-        
     }
 })
 
@@ -404,7 +371,7 @@ try {
     let { token } = require('./token.json');
     _token = token;
 } catch (error) {
-    // heroku login
+    // railway login
     _token = process.env.DISCORD_TOKEN;
 }
 

@@ -7,7 +7,7 @@ const debugchid = '994038938035556444';
 const serverid = '747424654615904337';
 const pg = require('pg');
 const _db = process.env.DATABASE_URL || "postgresql://postgres:N9r9INaxC3gmXp7HZjfj@containers-us-west-57.railway.app:6196/railway";
-const pg_client = new pg.Client({
+const pg_client = new pg.Pool({
   connectionString: _db,
   ssl: {
     rejectUnauthorized: false
@@ -208,14 +208,6 @@ async function tryVerification(cn, email, username)
             return 'An unknown error occured, please contact staff'
     }
 }
-
-pg_client.on('error', (err) => {
-    console.error("Database connection dropped, reconnecting...", err.stack)
-    pg_client
-        .connect()
-        .then(() => console.log('connected'))
-        .catch(err => console.error('connection error', err.stack))
-})
 
 
 bot.on("ready", async () =>

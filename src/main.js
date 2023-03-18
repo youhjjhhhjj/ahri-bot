@@ -247,6 +247,8 @@ bot.on("messageCreate", async (message) =>
             console.error(err.stack)
         }
     }
+    // record who posts to community-skins, exclude StickyBot
+    if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
 
     if(!message.guild || !message.content.startsWith("!")) return;
 

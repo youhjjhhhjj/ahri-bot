@@ -26,7 +26,8 @@ const table_metadata = {
     vote: "vote",
     amount: "amount"
 }
-const vote_options = [1, 2, 3, 4, 5, 6, 7]
+// const vote_options = [1, 2, 3, 4, 5, 6, 7]
+const stick_messages = new Map();  // channelId: [messageId, contents]
 
 async function addNewEmail(email, amount)
 // cases
@@ -222,33 +223,42 @@ bot.on("messageCreate", async (message) =>
     if(!message.guild)
     {
         console.log(message.author.tag + ": " + message.content);
-        try {
-            let contents = message.content.trim()
-            let cn = bot.channels.cache.get(debugchid);
-            if(!cn) return console.log('failed to find channel')
-            if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents))
-            {
-                let verification_message = await tryVerification(cn, contents, message.author.tag);
-                bot.users.fetch(message.author.id, false).then((user) => {
-                    user.send(verification_message);
-                });
-            }
-            else if (vote_options.includes(parseInt(contents)))
-            {
-                let vote_message = await registerVote(cn, message.author.tag, contents);
-                bot.users.fetch(message.author.id, false).then((user) => {
-                    user.send(vote_message);
-                });
-            }
-            return;
-        }
-        catch (err)
-        {
-            console.error(err.stack)
-        }
+        // try {
+        //     let contents = message.content.trim()
+        //     let cn = bot.channels.cache.get(debugchid);
+        //     if(!cn) return console.log('failed to find channel')
+        //     if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents))
+        //     {
+        //         let verification_message = await tryVerification(cn, contents, message.author.tag);
+        //         bot.users.fetch(message.author.id, false).then((user) => {
+        //             user.send(verification_message);
+        //         });
+        //     }
+        //     else if (vote_options.includes(parseInt(contents)))
+        //     {
+        //         let vote_message = await registerVote(cn, message.author.tag, contents);
+        //         bot.users.fetch(message.author.id, false).then((user) => {
+        //             user.send(vote_message);
+        //         });
+        //     }
+        //     return;
+        // }
+        // catch (err)
+        // {
+        //     console.error(err.stack)
+        // }
     }
     // record who posts to community-skins, exclude StickyBot
     if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
+
+    // sticky message
+    if (!message.content.startsWith("!stick") && !message.content.startsWith("!stickstop") && stick_messages.has(message.channelId))
+    {
+        message.channel.messages.delete(stick_messages.get(message.channelId)[0])
+        message.channel.send("__**Stickied Message:**__\n" + stick_messages.get(message.channelId)[1])
+        .then(sent_message => stick_messages.get(message.channelId)[0] = sent_message.id)  // update map with new message id
+        .catch(console.error);
+    }
 
     if(!message.guild || !message.content.startsWith("!")) return;
 
@@ -354,6 +364,21 @@ bot.on("messageCreate", async (message) =>
             console.error(err.stack)
             message.channel.send("Query error")
         });
+    }
+
+    if (cmd == "stick")
+    {
+        let message_content = param.join(" ")
+        message.channel.send("__**Stickied Message:**__\n" + message_content)
+        .then(message => stick_messages.set(message.channelId, [message.id, message_content]))  // update map with message id
+        .catch(console.error);
+        message.channel.messages.delete(message.id)  // delete command message
+    }
+    if (cmd == "stickstop" && stick_messages.has(message.channelId))
+    {
+        message.channel.messages.delete(stick_messages.get(message.channelId)[0])  // delete stick message
+        stick_messages.delete(message.channelId)  // update map
+        message.channel.messages.delete(message.id)  // delete command message
     }
 })
 

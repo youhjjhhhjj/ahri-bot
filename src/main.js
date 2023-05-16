@@ -5,6 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const debugchid = '994038938035556444';
 const serverid = '747424654615904337';
+
+const express = require("express");
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 const pg = require('pg');
 const _db = process.env.DATABASE_URL || "postgresql://postgres:N9r9INaxC3gmXp7HZjfj@containers-us-west-57.railway.app:6196/railway";
 const pg_client = new pg.Pool({
@@ -19,130 +25,60 @@ pg_client
   .catch(err => console.error('connection error', err.stack))
 // CREATE TABLE Verification030723 (email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, verified BOOLEAN NOT NULL DEFAULT FALSE, vote INTEGER, amount INTEGER DEFAULT 0 ) ;
 const table_metadata = {
-    name: "Verification030723",
+    name: "Verification051523",
     email: "email",
     username: "username",
-    verified: "verified",
+    user_id: "user_id",
     vote: "vote",
     amount: "amount"
 }
 // const vote_options = [1, 2, 3, 4, 5, 6, 7]
 const stick_messages = new Map();  // channelId: [messageId, contents]
 
-async function addNewEmail(email, amount)
-// cases
-//  0: email didn't exist - added email
-//  1: email existed, username not null, not verified - verified
-//  2: email existed - add amount to user row
-//  -1: error
-{
-    try
-    {
-        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [email])
-        // console.log(result)
-        if(result.rows.length == 0) // email does not exist
-        {            
-            try {
-                await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.username}, ${table_metadata.amount} ) VALUES ( $1, $2, $3) ;`, [email, null, amount])
-                return 0
-            }
-            catch (err)
-            {
-                console.error(err.stack)
-            }
-        }
-        else // email already exists
-        {
-            let cn = bot.channels.cache.get(debugchid);
-            if(!cn) return console.log('failed to find channel')
-            
-            if (result.rows[0][table_metadata.verified] == false)
-            {
-                if (result.rows[0][table_metadata.username] !== null)
-                {
-                    await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.verified} = $1, ${table_metadata.amount} = $2 WHERE ${table_metadata.email} = $3 ;`, [true, amount, email])
-                    
-                    cn.send(`Please add roles to ${result.rows[0][table_metadata.username]} manually`);
+const PORT = process.env.PORT || 4000;
 
-                    return 1
-                }
-            }
-            else
-            {
-                await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [result.rows[0][table_metadata.amount] + amount, email])
-                return 2
-            }
-        }
-    }
-    catch (err)
-    {
-        console.error(err.stack)
-    }
-    return -1
-}
-
-async function verifyEmail(email, username)
-// cases
-//  0: email didn't exist - added email and username
-//  1: email existed, username not null, not verified - do nothing
-//  2: email existed and username is null - verified
-//  3: email existed and verified - do nothing
-//  -1: error
-{
-    try
-    {
-        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [email])
-        // console.log(result)
-        if(result.rows.length == 0) // email does not exist
+app.post( '/', async function(req, res) {
+    try {
+        don_data = JSON.parse(req.body.data)
+        console.log(`Received ${don_data.amount} from ${don_data.email}`);
+        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_data.email])
+        if (result.rows.length == 0) // first time donation
         {
-            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.username} ) VALUES ( $1, $2 ) ;`, [email, username])
-            return 0
-        }
-        else // email already exists
-        {
-            if (result.rows[0][table_metadata.verified] == false)
-            {
-                if (result.rows[0][table_metadata.username] !== null)
-                {
-                    return 1
-                }
-                else
-                {
-                    await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.username} = $1, ${table_metadata.verified} = $2 WHERE ${table_metadata.email} = $3 ;`, [username, true, email])
-                    return 2
-                }
-            }
-            else
-            {
-                return 3
-            }
-        }
-    }
-    catch (err)
-    {
-        console.error(err.stack)
-    }
-    return -1
-}
-
-async function registerVote(cn, username, vote)
-{
-// cases
-//  0: username does not exist - do nothing
-//  1: username does exist - set vote
-    try
-    {
-        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.username} = $1 ;`, [username.toLowerCase()])
-        if (result.rows.length == 0) // username does not exist
-        {
-            cn.send(`${username} tried to vote, but wasn't in database`);
-            return "You were not found in the database, contact staff if you believe this is an error"
+            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_data.email, don_data.amount])
         }
         else
         {
-            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.vote} = $1 WHERE ${table_metadata.username} = $2 ;`, [vote, username.toLowerCase()])
+            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [result.rows[0][table_metadata.amount] + don_data.amount, don_data.email])
+        }
+        res.sendStatus(200);
+    }
+    catch (err)
+    {
+        console.error(err.stack)
+        res.sendStatus(400);
+    }
+    
+} );
+
+async function registerVote(cn, user_id, username, vote)
+{
+// cases
+//  0: user_id does not exist - do nothing
+//  1: user_id does exist - set vote
+    try
+    {
+        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.user_id} = $1 ;`, [user_id])
+        if (result.rows.length == 0) // user_id does not exist
+        {
+            cn.send(`${username} tried to vote, but wasn't in database`);
+            return "You were not found in the database. Did you message me your email first? Contact staff for assistance."
+        }
+        else
+        {
+            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.vote} = $1 WHERE ${table_metadata.user_id} = $2 ;`, [vote, user_id])
             cn.send(`${username} voted for ${vote}`)
-            return "Vote received"
+            // TODO: do embed
+            return "Vote successfully added."
         }
     }
     catch (err)
@@ -152,61 +88,52 @@ async function registerVote(cn, username, vote)
     return -1
 }
 
-async function tryVerification(cn, email, username)
+async function verifyUser(cn, email, user_id, username)
 {
-    let result = await verifyEmail(email.toLowerCase(), username.toLowerCase());
-    switch (result)
+    try
     {
-        case 0:
-            cn.send(`${username} added to database with email ${email}`);
-            return 'Verification request received, now cast your vote'
-        case 1:
-            cn.send(`${username} tried to verify with existing unverified email ${email}`);
-            return 'An unknown error occured, please contact staff'
-        case 2:
-            try
+        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [email])
+        // console.log(result)
+        if(result.rows.length == 0 || result.rows[0][table_metadata.user_id] !== user_id) // email does not exist or exists with different user_id
+        {
+            cn.send(`${username} tried to verify, but wasn't in database`);
+            return "This email was not found in the database. Are you sure it's your ko-fi email? Contact staff for assistance."
+        }
+        else // email already exists
+        {
+            if (result.rows[0][table_metadata.user_id] !== null)
             {
+                cn.send(`${username} tried to verify with existing email ${email}`);
+                return "You have already been verified."
+            }
+            else
+            {
+                await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.user_id} = $1, ${table_metadata.username} = $2 WHERE ${table_metadata.email} = $3 ;`, [user_id, username, email])
+                cn.send(`${username} verified successfully with email ${email}`);
+                // assign roles
                 let guild = bot.guilds.cache.get(serverid);
-
                 if (!guild) return cn.send("Failed to find guild");
 
-                let user = bot.users.cache.find(u => {
-
-                    // console.log(u.tag, username);
-                    return u.tag === username;
-                });
-
-                if (!user) return cn.send("Failed to find user");
-
                 let member = await guild.members.fetch(user.id);
-
                 if (!member) return cn.send("Failed to find member");
                 
                 let role1 = guild.roles.cache.find(r => r.name == 'Cool');
-                let role2 = guild.roles.cache.find(r => r.name == 'Donator');
-                
+                let role2 = guild.roles.cache.find(r => r.name == 'Donator');                
                 if (!role1) return cn.send("Failed to find role");
                 if (!role2) return cn.send("Failed to find role");
 
                 member.roles.add(role1);
                 member.roles.add(role2);
 
-                cn.send(`${username} verified successfully with email ${email}`);
-
-                return 'Successfully verified'
+                return "Successfully verified, now cast your vote."
             }
-            catch (err)
-            {
-                console.error(err.stack)
-                cn.send(`An unknown error occured while trying to verify ${username} with email ${email}`);
-                return 'An unknown error occured, please try again later'
-            }
-        case 3:
-            cn.send(`${username} attempted to verify with already verified email ${email}`);
-            return 'You have already been verified'
-        default:
-            cn.send(`An unknown error occured while trying to verify ${username} with email ${email}`);
-            return 'An unknown error occured, please contact staff'
+        }
+    }
+    catch (err)
+    {
+        console.error(err.stack)
+        cn.send(`An unknown error occured while trying to verify ${username} with email ${email}`);
+        return 'An unknown error occured, please try again later'
     }
 }
 
@@ -223,30 +150,30 @@ bot.on("messageCreate", async (message) =>
     if(!message.guild)
     {
         console.log(message.author.tag + ": " + message.content);
-        // try {
-        //     let contents = message.content.trim()
-        //     let cn = bot.channels.cache.get(debugchid);
-        //     if(!cn) return console.log('failed to find channel')
-        //     if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents))
-        //     {
-        //         let verification_message = await tryVerification(cn, contents, message.author.tag);
-        //         bot.users.fetch(message.author.id, false).then((user) => {
-        //             user.send(verification_message);
-        //         });
-        //     }
-        //     else if (vote_options.includes(parseInt(contents)))
-        //     {
-        //         let vote_message = await registerVote(cn, message.author.tag, contents);
-        //         bot.users.fetch(message.author.id, false).then((user) => {
-        //             user.send(vote_message);
-        //         });
-        //     }
-        //     return;
-        // }
-        // catch (err)
-        // {
-        //     console.error(err.stack)
-        // }
+        try {
+            let contents = message.content.trim()
+            let cn = bot.channels.cache.get(debugchid);
+            if(!cn) return console.log('failed to find channel')
+            if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents))
+            {
+                let verification_message = await verifyUser(cn, contents, message.author.id, message.author.tag);
+                bot.users.fetch(message.author.id, false).then((user) => {
+                    user.send(verification_message);
+                });
+            }
+            else if (vote_options.includes(parseInt(contents)))
+            {
+                let vote_message = await registerVote(cn, message.author.tag, contents);
+                bot.users.fetch(message.author.id, false).then((user) => {
+                    user.send(vote_message);
+                });
+            }
+            return;
+        }
+        catch (err)
+        {
+            console.error(err.stack)
+        }
     }
     // record who posts to community-skins, exclude StickyBot
     if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
@@ -313,39 +240,6 @@ bot.on("messageCreate", async (message) =>
             console.error(err.stack)
             message.channel.send("Database error")
         });;
-    }
-
-    if (cmd == "addemail")
-    {
-        try
-        {
-            let em = param[0].trim().toLowerCase();
-            let amount = parseInt((param[1] || "10").trim())
-            addNewEmail(em, amount).then((result) => {
-            switch (result)
-            {
-                case 0:
-                    message.channel.send(`${em} added successfully!`);
-                    break;
-                case 1:
-                    message.channel.send(`${em} has been verified`);
-                    break;
-                case 2:
-                    message.channel.send(`${em} donation amount has been updated`);
-                    break;
-                case 3:
-                    message.channel.send(`${em} was already added`);
-                    break;
-                default:
-                    message.channel.send(`${em} an unknown error occured`);
-
-            }
-        });
-        }
-        catch (err)
-        {
-            console.error(err.stack)
-        }
     }
 
     if (cmd == "querydb")

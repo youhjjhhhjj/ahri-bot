@@ -35,6 +35,8 @@ const table_metadata = {
 // const vote_options = [1, 2, 3, 4, 5, 6, 7]
 const stick_messages = new Map();  // channelId: [messageId, contents]
 
+var seed = 0 // exclusively for blankies
+
 const PORT = process.env.PORT || 4000;
 
 app.post( '/', async function(req, res) {
@@ -147,6 +149,9 @@ bot.on("ready", async () =>
 bot.on("messageCreate", async (message) =>
 {
     if(message.author.id == bot.user.id) return;
+
+    // DMs
+
     if(!message.guild)
     {
         console.log(message.author.tag + ": " + message.content);
@@ -175,6 +180,17 @@ bot.on("messageCreate", async (message) =>
             console.error(err.stack)
         }
     }
+
+
+    // server messages
+
+    // if(message.guild && message.channel.id == debugchid) console.log(message)  // debug
+    
+    if (message.stickers.has("1106699539647320154")) {  // blankies
+        if (parseInt(message.id.slice(-1)) == 0) seed = parseInt(message.id.slice(-2))
+        if (parseInt(message.author.id.slice(seed - 3, seed - 2)) <= 3) message.channel.send({"stickers": message.stickers})
+    }
+
     // record who posts to community-skins, exclude StickyBot
     if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
 
@@ -186,6 +202,9 @@ bot.on("messageCreate", async (message) =>
         .then(sent_message => stick_messages.get(message.channelId)[0] = sent_message.id)  // update map with new message id
         .catch(console.error);
     }
+
+
+    // commands
 
     if(!message.guild || !message.content.startsWith("!")) return;
 
@@ -273,6 +292,19 @@ bot.on("messageCreate", async (message) =>
         message.channel.messages.delete(stick_messages.get(message.channelId)[0])  // delete stick message
         stick_messages.delete(message.channelId)  // update map
         message.channel.messages.delete(message.id)  // delete command message
+    }
+    if (cmd == "stickadd")
+    {
+        try {
+            let channel_id = param[0]
+            let message_id = param[1]
+            let message_content = param.slice(2).join(" ")
+            stick_messages.set(channel_id, [message_id, message_content])
+            console.log(stick_messages)
+        }
+        catch (err) {
+            console.error(err.stack)
+        }
     }
 })
 

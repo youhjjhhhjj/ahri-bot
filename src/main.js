@@ -1,6 +1,6 @@
 'use strict';
 const { Client, Intents, MessageEmbed } = require('discord.js');
-const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES], partials: ["CHANNEL"] });
+const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS], partials: ["CHANNEL"] });
 const fs = require('fs');
 const path = require('path');
 const debugchid = '994038938035556444';
@@ -25,7 +25,7 @@ pg_client
   .catch(err => console.error('connection error', err.stack))
 // CREATE TABLE Verification030723 (email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, verified BOOLEAN NOT NULL DEFAULT FALSE, vote INTEGER, amount INTEGER DEFAULT 0 ) ;
 const table_metadata = {
-    name: "Verification051523",
+    name: "Verification052523",
     email: "email",
     username: "username",
     user_id: "user_id",
@@ -34,6 +34,12 @@ const table_metadata = {
 }
 // const vote_options = [1, 2, 3, 4, 5, 6, 7]
 const stick_messages = new Map();  // channelId: [messageId, contents]
+
+const user_timeouts = new Map();
+
+const staff_ids = new Set(["603962299895775252", "328629962162700289", "534061021304717312", "447070898868977665"])
+
+const vstaff_ids = new Set(["993911649511690330", "372022813839851520", "437808476106784770", "903968203779215401", "628400349979344919"])
 
 var seed = 0 // exclusively for blankies
 
@@ -148,7 +154,7 @@ bot.on("ready", async () =>
 
 bot.on("messageCreate", async (message) =>
 {
-    if(message.author.id == bot.user.id) return;
+    if(vstaff_ids.has(message.author.id)) return;
 
     // DMs
 
@@ -184,7 +190,7 @@ bot.on("messageCreate", async (message) =>
 
     // server messages
 
-    // if(message.guild && message.channel.id == debugchid) console.log(message)  // debug
+    if(message.guild && message.channel.id == debugchid) console.log(message)  // debug
     
     if (message.stickers.has("1106699539647320154")) {  // blankies
         if (parseInt(message.id.slice(-1)) == 0) seed = parseInt(message.id.slice(-2))
@@ -193,6 +199,16 @@ bot.on("messageCreate", async (message) =>
 
     // record who posts to community-skins, exclude StickyBot
     if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
+
+    if (message.channelId == 747784406801842196) {  // commission-request
+        if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
+            message.delete()
+            return
+        }
+        else {
+            message.react("🔼").then(() => message.react("🔽"))
+        }
+    }
 
     // sticky message
     if (!message.content.startsWith("!stick") && !message.content.startsWith("!stickstop") && stick_messages.has(message.channelId))
@@ -208,7 +224,7 @@ bot.on("messageCreate", async (message) =>
 
     if(!message.guild || !message.content.startsWith("!")) return;
 
-    if(message.author.id != "534061021304717312" && message.author.id != "328629962162700289" && message.author.id != "603962299895775252") return;
+    if(!staff_ids.has(message.author.id)) return;
 
     let cmd = message.content.trim().replace(/  /g, ' ').substring(1).split(" ");
 
@@ -304,6 +320,33 @@ bot.on("messageCreate", async (message) =>
         }
         catch (err) {
             console.error(err.stack)
+        }
+    }
+})
+
+
+bot.on("messageReactionAdd", async (reaction, user) => {
+    // console.log(reaction)
+    // if (reaction.message.channelId !== debugchid || reaction.emoji.name !== "⬇️") return  // debug
+    if (reaction.message.channelId === "747784406801842196") {  // commission-request
+        if (reaction.emoji.name === "⬆️" || reaction.emoji.name === "⬇️") {
+            reaction.remove()
+        }
+    }
+    else {
+        if (reaction.emoji.name !== "⬇️" || staff_ids.has(reaction.message.author.id) || vstaff_ids.has(reaction.message.author.id) ) return
+        if (reaction.count >= 5 && !(user_timeouts.has(reaction.message.author.id) && user_timeouts.get(reaction.message.author.id) >= reaction.message.createdTimestamp) && (!reaction.message.reactions.cache.has('⬆️') || reaction.count - reaction.message.reactions.cache.get('⬆️').count >= 5)) {
+            console.log(`${reaction.message.author.tag} timed out`)
+            try {
+                reaction.message.guild.members.fetch(reaction.message.author.id).then((member) => {
+                    member.timeout(1000 * 60 * 10);
+                    reaction.message.reply("People didn't like this, you have been timed out for 10 minutes.");
+                });
+                user_timeouts.set(reaction.message.author.id, reaction.message.createdTimestamp)
+            }
+            catch (err) {
+                console.error(err.stack)
+            }
         }
     }
 })

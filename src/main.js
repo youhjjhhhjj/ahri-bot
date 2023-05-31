@@ -23,16 +23,16 @@ pg_client
   .connect()
   .then(() => console.log('connected'))
   .catch(err => console.error('connection error', err.stack))
-// CREATE TABLE Verification030723 (email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, verified BOOLEAN NOT NULL DEFAULT FALSE, vote INTEGER, amount INTEGER DEFAULT 0 ) ;
+// CREATE TABLE Verification053123 ( email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, vote INTEGER, amount NUMERIC(5, 2) DEFAULT 0 ) ;
 const table_metadata = {
-    name: "Verification052523",
+    name: "Verification053123",
     email: "email",
     username: "username",
     user_id: "user_id",
     vote: "vote",
     amount: "amount"
 }
-// const vote_options = [1, 2, 3, 4, 5, 6, 7]
+const vote_options = [1, 2, 3, 4, 5, 6]
 const stick_messages = new Map();  // channelId: [messageId, contents]
 
 const user_timeouts = new Map();
@@ -41,22 +41,35 @@ const staff_ids = new Set(["603962299895775252", "328629962162700289", "53406102
 
 const vstaff_ids = new Set(["993911649511690330", "372022813839851520", "437808476106784770", "903968203779215401", "628400349979344919"])
 
+var embed_message_id = null
+
 var seed = 0 // exclusively for blankies
 
 const PORT = process.env.PORT || 4000;
 
 app.post( '/', async function(req, res) {
     try {
-        don_data = JSON.parse(req.body.data)
-        console.log(`Received ${don_data.amount} from ${don_data.email}`);
-        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_data.email])
+        // console.log(req.body.data)
+        let don_data = JSON.parse(req.body.data)
+        let don_email = don_data.email.toLowerCase()
+        let confirmation = `Received ${don_data.amount} from ${don_email}`
+        console.log(confirmation);
+        bot.channels.cache.get(debugchid).send(confirmation);
+        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
         if (result.rows.length == 0) // first time donation
         {
-            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_data.email, don_data.amount])
+            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
         }
         else
         {
-            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [result.rows[0][table_metadata.amount] + don_data.amount, don_data.email])
+            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
+            if (result.rows[0][table_metadata.vote] !== null) {  // auto update embed
+                let campaign_channel = bot.channels.cache.get("1113124813138051242")
+                if (embed_message_id) {
+                    campaign_channel.messages.delete(embed_message_id)
+                }
+                embed(campaign_channel)
+            }
         }
         res.sendStatus(200);
     }
@@ -85,7 +98,12 @@ async function registerVote(cn, user_id, username, vote)
         {
             await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.vote} = $1 WHERE ${table_metadata.user_id} = $2 ;`, [vote, user_id])
             cn.send(`${username} voted for ${vote}`)
-            // TODO: do embed
+            // update embed
+            let campaign_channel = bot.channels.cache.get("1113124813138051242")
+            if (embed_message_id) {
+                campaign_channel.messages.delete(embed_message_id)
+            }
+            embed(campaign_channel)
             return "Vote successfully added."
         }
     }
@@ -102,7 +120,7 @@ async function verifyUser(cn, email, user_id, username)
     {
         let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [email])
         // console.log(result)
-        if(result.rows.length == 0 || result.rows[0][table_metadata.user_id] !== user_id) // email does not exist or exists with different user_id
+        if(result.rows.length == 0 || (result.rows[0][table_metadata.user_id] !== null && result.rows[0][table_metadata.user_id] !== user_id)) // email does not exist or exists with different user_id
         {
             cn.send(`${username} tried to verify, but wasn't in database`);
             return "This email was not found in the database. Are you sure it's your ko-fi email? Contact staff for assistance."
@@ -122,7 +140,7 @@ async function verifyUser(cn, email, user_id, username)
                 let guild = bot.guilds.cache.get(serverid);
                 if (!guild) return cn.send("Failed to find guild");
 
-                let member = await guild.members.fetch(user.id);
+                let member = await guild.members.fetch(user_id);
                 if (!member) return cn.send("Failed to find member");
                 
                 let role1 = guild.roles.cache.find(r => r.name == 'Cool');
@@ -143,6 +161,44 @@ async function verifyUser(cn, email, user_id, username)
         cn.send(`An unknown error occured while trying to verify ${username} with email ${email}`);
         return 'An unknown error occured, please try again later'
     }
+}
+
+async function embed(channel) {
+    let fields = [
+        {"name": "1: Shaco (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "2: Sett (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "3: Bel'veth (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "4: Shyvana (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "5: Viego (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "6: Ornn (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+    ];
+    pg_client.query(`SELECT vote, SUM(amount) AS vote_amount, CAST(SUM(amount) AS FLOAT) / MAX(total) AS vote_percent FROM ${table_metadata.name} CROSS JOIN (SELECT SUM(amount) AS total FROM ${table_metadata.name} WHERE ${table_metadata.vote} IS NOT NULL) AS Total GROUP BY vote, total ORDER BY vote`).then(async (result) => {
+        for (let i = 0; i < result.rows.length; i++)
+        {
+            if (vote_options.includes(parseInt(result.rows[i][table_metadata.vote])))
+            {
+                fields[parseInt(result.rows[i][table_metadata.vote]) - 1]["name"] = fields[parseInt(result.rows[i][table_metadata.vote]) - 1]["name"].slice(0, -8) + parseInt(result.rows[i]["vote_percent"] * 100 + 0.5) + "% / $" + result.rows[i]["vote_amount"] + ")"
+                fields[parseInt(result.rows[i][table_metadata.vote]) - 1]["value"] = "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓".slice(0, parseInt(result.rows[i]["vote_percent"] * 20 + 0.5)) + "░░░░░░░░░░░░░░░░░░░░".slice(parseInt(result.rows[i]["vote_percent"] * 20 + 0.5));
+            }
+        }
+        channel.send({ "embeds": [
+            {
+                "type": "rich",
+                "title": `10k Members Skin Campaign #1`,
+                "description": `Follow the instructions above to participate in the event.`,
+                "color": 0x1eff00,
+                "fields": fields,
+                "image": {
+                  "url": `https://cdn.discordapp.com/attachments/839085704658681937/1113600511950721034/campaign052523.png`,
+                  "height": 0,
+                  "width": 0
+                }
+            }
+            ]
+        }).then((embed) => embed_message_id = embed.id)
+    }).catch(err => {
+        console.error(err.stack)
+    });
 }
 
 
@@ -167,14 +223,14 @@ bot.on("messageCreate", async (message) =>
             if(!cn) return console.log('failed to find channel')
             if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents))
             {
-                let verification_message = await verifyUser(cn, contents, message.author.id, message.author.tag);
+                let verification_message = await verifyUser(cn, contents.toLowerCase(), message.author.id, message.author.tag);
                 bot.users.fetch(message.author.id, false).then((user) => {
                     user.send(verification_message);
                 });
             }
             else if (vote_options.includes(parseInt(contents)))
             {
-                let vote_message = await registerVote(cn, message.author.tag, contents);
+                let vote_message = await registerVote(cn, message.author.id, message.author.tag, contents);
                 bot.users.fetch(message.author.id, false).then((user) => {
                     user.send(vote_message);
                 });
@@ -190,12 +246,12 @@ bot.on("messageCreate", async (message) =>
 
     // server messages
 
-    if(message.guild && message.channel.id == debugchid) console.log(message)  // debug
+    // if(message.guild && message.channel.id == debugchid) console.log(message)  // debug
     
-    if (message.stickers.has("1106699539647320154")) {  // blankies
-        if (parseInt(message.id.slice(-1)) == 0) seed = parseInt(message.id.slice(-2))
-        if (parseInt(message.author.id.slice(seed - 3, seed - 2)) <= 3) message.channel.send({"stickers": message.stickers})
-    }
+    // if (message.stickers.has("1106699539647320154")) {  // blankies
+    //     if (parseInt(message.id.slice(-1)) == 0) seed = parseInt(message.id.slice(-2))
+    //     if (parseInt(message.author.id.slice(seed - 3, seed - 2)) <= 3) message.channel.send({"stickers": message.stickers})
+    // }
 
     // record who posts to community-skins, exclude StickyBot
     if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
@@ -238,43 +294,8 @@ bot.on("messageCreate", async (message) =>
 
     if (cmd == "embed")
     {
-        let fields = [
-            {"name": "1: Sona (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-            {"name": "2: Samira (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-            {"name": "3: Warwick (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-            {"name": "4: Star Nemesis Morgana (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-            {"name": "5: Star Guardian Miss Fortune (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-            {"name": "6: Xayah (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-            {"name": "7: Garen (0%)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        ];
-        pg_client.query(`SELECT vote, CAST(SUM(amount) AS FLOAT) / MAX(total) AS vote_percent FROM ${table_metadata.name} CROSS JOIN (SELECT SUM(amount) AS total FROM ${table_metadata.name} WHERE ${table_metadata.vote} IS NOT NULL) AS Total GROUP BY vote, total ORDER BY vote`).then(async (result) => {
-            for (let i = 0; i < result.rows.length; i++)
-            {
-                if (vote_options.includes(parseInt(result.rows[i][table_metadata.vote])))
-                {
-                    fields[parseInt(result.rows[i][table_metadata.vote]) - 1]["name"] = fields[parseInt(result.rows[i][table_metadata.vote]) - 1]["name"].slice(0, -3) + parseInt(result.rows[i]["vote_percent"] * 100 + 0.5) + "%)"
-                    fields[parseInt(result.rows[i][table_metadata.vote]) - 1]["value"] = "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓".slice(0, parseInt(result.rows[i]["vote_percent"] * 20 + 0.5)) + "░░░░░░░░░░░░░░░░░░░░".slice(parseInt(result.rows[i]["vote_percent"] * 20 + 0.5));
-                }
-            }
-            message.channel.send({ "embeds": [
-                {
-                    "type": "rich",
-                    "title": `Spring Skin Event 2023`,
-                    "description": `Follow the instructions above to participate in the event.`,
-                    "color": 0x1eff00,
-                    "fields": fields,
-                    "image": {
-                      "url": `https://media.discordapp.net/attachments/839085704658681937/1082714441214337076/campaign.png`,
-                      "height": 0,
-                      "width": 0
-                    }
-                }
-                ]
-            })
-        }).catch(err => {
-            console.error(err.stack)
-            message.channel.send("Database error")
-        });;
+        embed(bot.channels.cache.get("1113124813138051242"))
+        console.log(embed_message_id)
     }
 
     if (cmd == "querydb")
@@ -364,3 +385,4 @@ try {
 }
 
 bot.login(_token)
+app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );

@@ -6,10 +6,10 @@ const path = require('path');
 const debugchid = '994038938035556444';
 const serverid = '747424654615904337';
 
-const express = require("express");
-const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// const express = require("express");
+// const app = express();
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
 
 const pg = require('pg');
 const _db = process.env.DATABASE_URL || "postgresql://postgres:N9r9INaxC3gmXp7HZjfj@containers-us-west-57.railway.app:6196/railway";
@@ -32,7 +32,11 @@ const table_metadata = {
     vote: "vote",
     amount: "amount"
 }
+
 const vote_options = [1, 2, 3, 4, 5, 6]
+
+// const submissions = new Map();  // messageId: score
+
 const stick_messages = new Map();  // channelId: [messageId, contents]
 
 const user_timeouts = new Map();
@@ -47,39 +51,39 @@ var seed = 0 // exclusively for blankies
 
 const PORT = process.env.PORT || 4000;
 
-app.post( '/', async function(req, res) {
-    try {
-        // console.log(req.body.data)
-        let don_data = JSON.parse(req.body.data)
-        let don_email = don_data.email.toLowerCase()
-        let confirmation = `Received ${don_data.amount} from ${don_email}`
-        console.log(confirmation);
-        bot.channels.cache.get(debugchid).send(confirmation);
-        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
-        if (result.rows.length == 0) // first time donation
-        {
-            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
-        }
-        else
-        {
-            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
-            if (result.rows[0][table_metadata.vote] !== null) {  // auto update embed
-                let campaign_channel = bot.channels.cache.get("1113124813138051242")
-                if (embed_message_id) {
-                    campaign_channel.messages.delete(embed_message_id)
-                }
-                embed(campaign_channel)
-            }
-        }
-        res.sendStatus(200);
-    }
-    catch (err)
-    {
-        console.error(err.stack)
-        res.sendStatus(400);
-    }
+// app.post( '/', async function(req, res) {
+//     try {
+//         // console.log(req.body.data)
+//         let don_data = JSON.parse(req.body.data)
+//         let don_email = don_data.email.toLowerCase()
+//         let confirmation = `Received ${don_data.amount} from ${don_email}`
+//         console.log(confirmation);
+//         bot.channels.cache.get(debugchid).send(confirmation);
+//         let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
+//         if (result.rows.length == 0) // first time donation
+//         {
+//             await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
+//         }
+//         else
+//         {
+//             await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
+//             if (result.rows[0][table_metadata.vote] !== null) {  // auto update embed
+//                 let campaign_channel = bot.channels.cache.get("1113124813138051242")
+//                 if (embed_message_id) {
+//                     campaign_channel.messages.delete(embed_message_id)
+//                 }
+//                 embed(campaign_channel)
+//             }
+//         }
+//         res.sendStatus(200);
+//     }
+//     catch (err)
+//     {
+//         console.error(err.stack)
+//         res.sendStatus(400);
+//     }
     
-} );
+// } );
 
 async function registerVote(cn, user_id, username, vote)
 {
@@ -145,8 +149,7 @@ async function verifyUser(cn, email, user_id, username)
                 
                 let role1 = guild.roles.cache.find(r => r.name == 'Cool');
                 let role2 = guild.roles.cache.find(r => r.name == 'Donator');                
-                if (!role1) return cn.send("Failed to find role");
-                if (!role2) return cn.send("Failed to find role");
+                if (!role1 || !role2) return cn.send("Failed to find role");
 
                 member.roles.add(role1);
                 member.roles.add(role2);
@@ -217,6 +220,7 @@ bot.on("messageCreate", async (message) =>
     if(!message.guild)
     {
         console.log(message.author.tag + ": " + message.content);
+        return
         try {
             let contents = message.content.trim()
             let cn = bot.channels.cache.get(debugchid);
@@ -262,7 +266,7 @@ bot.on("messageCreate", async (message) =>
             return
         }
         else {
-            message.react("🔼").then(() => message.react("🔽"))
+            message.react("🔼").then(() => message.react("🔽"))//.then(submissions.set(message.id, 0))
         }
     }
 
@@ -295,7 +299,6 @@ bot.on("messageCreate", async (message) =>
     if (cmd == "embed")
     {
         embed(bot.channels.cache.get("1113124813138051242"))
-        console.log(embed_message_id)
     }
 
     if (cmd == "querydb")
@@ -343,6 +346,20 @@ bot.on("messageCreate", async (message) =>
             console.error(err.stack)
         }
     }
+    if (cmd == "purge_donators")
+    {
+        try {
+            let role = message.guild.roles.cache.find(r => r.name == 'Donator');  
+            role.members.forEach((member, i) => { // Looping through the members of role.
+                setTimeout(() => {
+                    member.roles.remove(role); // Removing the role.
+                }, i * 100);
+            });
+        }
+        catch (err) {
+            console.error(err.stack)
+        }
+    }
 })
 
 
@@ -350,23 +367,35 @@ bot.on("messageReactionAdd", async (reaction, user) => {
     // console.log(reaction)
     // if (reaction.message.channelId !== debugchid || reaction.emoji.name !== "⬇️") return  // debug
     if (reaction.message.channelId === "747784406801842196") {  // commission-request
-        if (reaction.emoji.name === "⬆️" || reaction.emoji.name === "⬇️") {
-            reaction.remove()
-        }
+        if (reaction.emoji.name === "⬆️" || reaction.emoji.name === "⬇️") reaction.remove()
+        // else if (reaction.emoji.name === "🔼") {
+        //     let submission_score = submissions.get(reaction.message.id)
+        //     if (!submission_score) return
+        //     submissions.set(reaction.message.id, submission_score + 1)
+        // }
+        // else if (reaction.emoji.name === "🔽") {
+        //     let submission_score = submissions.get(reaction.message.id)
+        //     if (!submission_score) return
+        //     submissions.set(reaction.message.id, submission_score - 1)
+        // }
     }
     else {
-        if (reaction.emoji.name !== "⬇️" || staff_ids.has(reaction.message.author.id) || vstaff_ids.has(reaction.message.author.id) ) return
+        if (reaction.emoji.name !== "⬇️") return
         if (reaction.count >= 5 && !(user_timeouts.has(reaction.message.author.id) && user_timeouts.get(reaction.message.author.id) >= reaction.message.createdTimestamp) && (!reaction.message.reactions.cache.has('⬆️') || reaction.count - reaction.message.reactions.cache.get('⬆️').count >= 5)) {
-            console.log(`${reaction.message.author.tag} timed out`)
-            try {
-                reaction.message.guild.members.fetch(reaction.message.author.id).then((member) => {
-                    member.timeout(1000 * 60 * 10);
-                    reaction.message.reply("People didn't like this, you have been timed out for 10 minutes.");
-                });
-                user_timeouts.set(reaction.message.author.id, reaction.message.createdTimestamp)
-            }
-            catch (err) {
-                console.error(err.stack)
+            user_timeouts.set(reaction.message.author.id, reaction.message.createdTimestamp)
+            if (staff_ids.has(reaction.message.author.id)) reaction.message.reply("Shut up mod.");
+            else if (vstaff_ids.has(reaction.message.author.id)) reaction.message.reply("Shut up bot.");
+            else {
+                console.log(`${reaction.message.author.tag} timed out`)
+                try {
+                    reaction.message.guild.members.fetch(reaction.message.author.id).then((member) => {
+                        member.timeout(1000 * 60 * 10);
+                        reaction.message.reply("People didn't like this, you have been timed out for 10 minutes.");
+                    });
+                }
+                catch (err) {
+                    console.error(err.stack)
+                }
             }
         }
     }
@@ -385,4 +414,4 @@ try {
 }
 
 bot.login(_token)
-app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );
+// app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );

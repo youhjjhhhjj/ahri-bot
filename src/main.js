@@ -1,15 +1,15 @@
 'use strict';
 const { Client, Intents, MessageEmbed } = require('discord.js');
-const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS], partials: ["CHANNEL"] });
+const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS], partials: ['CHANNEL'] });
 const fs = require('fs');
 const path = require('path');
 const debugchid = '994038938035556444';
 const serverid = '747424654615904337';
 
-// const express = require("express");
-// const app = express();
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
+const express = require("express");
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 const pg = require('pg');
 const _db = process.env.DATABASE_URL || "postgresql://postgres:N9r9INaxC3gmXp7HZjfj@containers-us-west-57.railway.app:6196/railway";
@@ -23,9 +23,9 @@ pg_client
   .connect()
   .then(() => console.log('connected'))
   .catch(err => console.error('connection error', err.stack))
-// CREATE TABLE Verification053123 ( email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, vote INTEGER, amount NUMERIC(5, 2) DEFAULT 0 ) ;
+// CREATE TABLE Verification061423 ( email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, vote INTEGER, amount NUMERIC(5, 2) DEFAULT 0 ) ;
 const table_metadata = {
-    name: "Verification053123",
+    name: "Verification061423",
     email: "email",
     username: "username",
     user_id: "user_id",
@@ -34,8 +34,6 @@ const table_metadata = {
 }
 
 const vote_options = [1, 2, 3, 4, 5, 6]
-
-// const submissions = new Map();  // messageId: score
 
 const stick_messages = new Map();  // channelId: [messageId, contents]
 
@@ -47,43 +45,41 @@ const vstaff_ids = new Set(["993911649511690330", "372022813839851520", "4378084
 
 var embed_message_id = null
 
-var seed = 0 // exclusively for blankies
-
 const PORT = process.env.PORT || 4000;
 
-// app.post( '/', async function(req, res) {
-//     try {
-//         // console.log(req.body.data)
-//         let don_data = JSON.parse(req.body.data)
-//         let don_email = don_data.email.toLowerCase()
-//         let confirmation = `Received ${don_data.amount} from ${don_email}`
-//         console.log(confirmation);
-//         bot.channels.cache.get(debugchid).send(confirmation);
-//         let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
-//         if (result.rows.length == 0) // first time donation
-//         {
-//             await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
-//         }
-//         else
-//         {
-//             await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
-//             if (result.rows[0][table_metadata.vote] !== null) {  // auto update embed
-//                 let campaign_channel = bot.channels.cache.get("1113124813138051242")
-//                 if (embed_message_id) {
-//                     campaign_channel.messages.delete(embed_message_id)
-//                 }
-//                 embed(campaign_channel)
-//             }
-//         }
-//         res.sendStatus(200);
-//     }
-//     catch (err)
-//     {
-//         console.error(err.stack)
-//         res.sendStatus(400);
-//     }
+app.post( '/', async function(req, res) {
+    try {
+        // console.log(req.body.data)
+        let don_data = JSON.parse(req.body.data)
+        let don_email = don_data.email.toLowerCase()
+        let confirmation = `Received ${don_data.amount} from ${don_email}`
+        console.log(confirmation);
+        bot.channels.cache.get(debugchid).send(confirmation);
+        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
+        if (result.rows.length == 0) // first time donation
+        {
+            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
+        }
+        else
+        {
+            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
+            if (result.rows[0][table_metadata.vote] !== null) {  // auto update embed
+                let campaign_channel = bot.channels.cache.get("1113124813138051242")
+                if (embed_message_id) {
+                    campaign_channel.messages.delete(embed_message_id)
+                }
+                embed(campaign_channel)
+            }
+        }
+        res.sendStatus(200);
+    }
+    catch (err)
+    {
+        console.error(err.stack)
+        res.sendStatus(400);
+    }
     
-// } );
+} );
 
 async function registerVote(cn, user_id, username, vote)
 {
@@ -115,7 +111,7 @@ async function registerVote(cn, user_id, username, vote)
     {
         console.error(err.stack)
     }
-    return -1
+    return "Something went wrong, contact staff for assistance."
 }
 
 async function verifyUser(cn, email, user_id, username)
@@ -148,7 +144,7 @@ async function verifyUser(cn, email, user_id, username)
                 if (!member) return cn.send("Failed to find member");
                 
                 let role1 = guild.roles.cache.find(r => r.name == 'Cool');
-                let role2 = guild.roles.cache.find(r => r.name == 'Donator');                
+                let role2 = guild.roles.cache.find(r => r.name == 'Donator2');                
                 if (!role1 || !role2) return cn.send("Failed to find role");
 
                 member.roles.add(role1);
@@ -168,12 +164,12 @@ async function verifyUser(cn, email, user_id, username)
 
 async function embed(channel) {
     let fields = [
-        {"name": "1: Shaco (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "2: Sett (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "3: Bel'veth (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "4: Shyvana (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "5: Viego (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "6: Ornn (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "1: Rell (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "2: Ashe (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "3: Withered Rose Syndra (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "4: Unbound Thresh (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "5: Astronaut Poppy (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
+        {"name": "6: Miss Fortune (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
     ];
     pg_client.query(`SELECT vote, SUM(amount) AS vote_amount, CAST(SUM(amount) AS FLOAT) / MAX(total) AS vote_percent FROM ${table_metadata.name} CROSS JOIN (SELECT SUM(amount) AS total FROM ${table_metadata.name} WHERE ${table_metadata.vote} IS NOT NULL) AS Total GROUP BY vote, total ORDER BY vote`).then(async (result) => {
         for (let i = 0; i < result.rows.length; i++)
@@ -187,12 +183,12 @@ async function embed(channel) {
         channel.send({ "embeds": [
             {
                 "type": "rich",
-                "title": `10k Members Skin Campaign #1`,
+                "title": `10k Members Skin Campaign #2`,
                 "description": `Follow the instructions above to participate in the event.`,
                 "color": 0x1eff00,
                 "fields": fields,
                 "image": {
-                  "url": `https://cdn.discordapp.com/attachments/839085704658681937/1113600511950721034/campaign052523.png`,
+                  "url": `https://cdn.discordapp.com/attachments/839085704658681937/1118666337108107264/campaign061423.png`,
                   "height": 0,
                   "width": 0
                 }
@@ -220,7 +216,6 @@ bot.on("messageCreate", async (message) =>
     if(!message.guild)
     {
         console.log(message.author.tag + ": " + message.content);
-        return
         try {
             let contents = message.content.trim()
             let cn = bot.channels.cache.get(debugchid);
@@ -260,15 +255,15 @@ bot.on("messageCreate", async (message) =>
     // record who posts to community-skins, exclude StickyBot
     if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
 
-    if (message.channelId == 747784406801842196) {  // commission-request
-        if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
-            message.delete()
-            return
-        }
-        else {
-            message.react("🔼").then(() => message.react("🔽"))//.then(submissions.set(message.id, 0))
-        }
-    }
+    // if (message.channelId == 747784406801842196) {  // commission-request
+    //     if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
+    //         message.delete()
+    //         return
+    //     }
+    //     else {
+    //         message.react("🔼").then(() => message.react("🔽"))//.then(submissions.set(message.id, 0))
+    //     }
+    // }
 
     // sticky message
     if (!message.content.startsWith("!stick") && !message.content.startsWith("!stickstop") && stick_messages.has(message.channelId))
@@ -346,56 +341,41 @@ bot.on("messageCreate", async (message) =>
             console.error(err.stack)
         }
     }
-    if (cmd == "purge_donators")
-    {
-        try {
-            let role = message.guild.roles.cache.find(r => r.name == 'Donator');  
-            role.members.forEach((member, i) => { // Looping through the members of role.
-                setTimeout(() => {
-                    member.roles.remove(role); // Removing the role.
-                }, i * 100);
-            });
-        }
-        catch (err) {
-            console.error(err.stack)
-        }
-    }
+    // if (cmd == "purge_donators")
+    // {
+    //     try {
+    //         let role = message.guild.roles.cache.find(r => r.name == 'Donator');  
+    //         role.members.forEach((member, i) => { // Looping through the members of role.
+    //             setTimeout(() => {
+    //                 member.roles.remove(role); // Removing the role.
+    //             }, i * 100);
+    //         });
+    //     }
+    //     catch (err) {
+    //         console.error(err.stack)
+    //     }
+    // }
 })
 
 
 bot.on("messageReactionAdd", async (reaction, user) => {
     // console.log(reaction)
     // if (reaction.message.channelId !== debugchid || reaction.emoji.name !== "⬇️") return  // debug
-    if (reaction.message.channelId === "747784406801842196") {  // commission-request
-        if (reaction.emoji.name === "⬆️" || reaction.emoji.name === "⬇️") reaction.remove()
-        // else if (reaction.emoji.name === "🔼") {
-        //     let submission_score = submissions.get(reaction.message.id)
-        //     if (!submission_score) return
-        //     submissions.set(reaction.message.id, submission_score + 1)
-        // }
-        // else if (reaction.emoji.name === "🔽") {
-        //     let submission_score = submissions.get(reaction.message.id)
-        //     if (!submission_score) return
-        //     submissions.set(reaction.message.id, submission_score - 1)
-        // }
-    }
-    else {
-        if (reaction.emoji.name !== "⬇️") return
-        if (reaction.count >= 5 && !(user_timeouts.has(reaction.message.author.id) && user_timeouts.get(reaction.message.author.id) >= reaction.message.createdTimestamp) && (!reaction.message.reactions.cache.has('⬆️') || reaction.count - reaction.message.reactions.cache.get('⬆️').count >= 5)) {
-            user_timeouts.set(reaction.message.author.id, reaction.message.createdTimestamp)
-            if (staff_ids.has(reaction.message.author.id)) reaction.message.reply("Shut up mod.");
-            else if (vstaff_ids.has(reaction.message.author.id)) reaction.message.reply("Shut up bot.");
-            else {
-                console.log(`${reaction.message.author.tag} timed out`)
-                try {
-                    reaction.message.guild.members.fetch(reaction.message.author.id).then((member) => {
-                        member.timeout(1000 * 60 * 10);
-                        reaction.message.reply("People didn't like this, you have been timed out for 10 minutes.");
-                    });
-                }
-                catch (err) {
-                    console.error(err.stack)
-                }
+    if (reaction.emoji.name !== "⬇️") return
+    if (reaction.count >= 5 && !(user_timeouts.has(reaction.message.author.id) && user_timeouts.get(reaction.message.author.id) >= reaction.message.createdTimestamp) && (!reaction.message.reactions.cache.has('⬆️') || reaction.count - reaction.message.reactions.cache.get('⬆️').count >= 5)) {
+        user_timeouts.set(reaction.message.author.id, reaction.message.createdTimestamp)
+        if (staff_ids.has(reaction.message.author.id)) reaction.message.reply("Shut up mod.");
+        else if (vstaff_ids.has(reaction.message.author.id)) reaction.message.reply("Shut up bot.");
+        else {
+            console.log(`${reaction.message.author.tag} timed out`)
+            try {
+                reaction.message.guild.members.fetch(reaction.message.author.id).then((member) => {
+                    member.timeout(1000 * 60 * 10);
+                    reaction.message.reply("People didn't like this, you have been timed out for 10 minutes.");
+                });
+            }
+            catch (err) {
+                console.error(err.stack)
             }
         }
     }
@@ -414,4 +394,4 @@ try {
 }
 
 bot.login(_token)
-// app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );
+app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );

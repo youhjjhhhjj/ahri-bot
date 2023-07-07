@@ -205,6 +205,7 @@ async function do_message_vote(message, voter_id, vote) {
     let message_vote = message_votes.get(message.id)
     message_vote[vote].add(voter_id)
     if (message_vote['⬇️'].size - message_vote['⬆️'].size >= 5) {
+        let num_mins = message.createdTimestamp - user_timeouts.get(message.author.id) < 1000 * 60 * 60 ? 30 : 10  // if less than an hour from previous timeout, set 30 mins instead of 10
         user_timeouts.set(message.author.id, message.createdTimestamp)
         if (staff_ids.has(message.author.id)) message.reply("Shut up mod.");
         else if (message.webhookId) message.reply("Shut up ... server?");
@@ -212,9 +213,9 @@ async function do_message_vote(message, voter_id, vote) {
         else {
             console.log(`${message.author.tag} timed out`)
             message.guild.members.fetch(message.author.id).then((member) => {
-                member.timeout(1000 * 60 * 10)
-                .then(message.reply("People didn't like this, you have been timed out for 10 minutes."))
-                .then(setTimeout(() => member.timeout(null), 1000 * 60 * 10))
+                member.timeout(1000 * 60 * num_mins)
+                .then(message.reply("People didn't like this, you have been timed out for " + num_mins + " minutes."))
+                .then(setTimeout(() => member.timeout(null), 1000 * 60 * num_mins))
                 .catch(err => console.error('connection error', err.stack))
             })
             .catch(err => console.error('connection error', err.stack))

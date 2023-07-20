@@ -3,13 +3,15 @@ const { Client, Intents, MessageEmbed } = require('discord.js');
 const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS], partials: ['CHANNEL'] });
 const fs = require('fs');
 const path = require('path');
+var https = require('https');
 const debugchid = '994038938035556444';
 const serverid = '747424654615904337';
 
-const express = require("express");
-const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// TODO remove dependency on express
+// const express = require("express");
+// const app = express();
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
 
 const pg = require('pg');
 const _db = process.env.DATABASE_URL || "postgresql://postgres:N9r9INaxC3gmXp7HZjfj@containers-us-west-57.railway.app:6196/railway";
@@ -47,40 +49,42 @@ var embed_message_id = null
 
 const PORT = process.env.PORT || 4000;
 
-var campaign = 300;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
+var campaign = -1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
 
-app.post( '/', async function(req, res) {
-    try {
-        if (campaign == -1) return
-        // console.log(req.body.data)
-        let don_data = JSON.parse(req.body.data)
-        let don_email = don_data.email.toLowerCase()
-        let confirmation = `Received ${don_data.amount} from ${don_email}`
-        console.log(confirmation);
-        bot.channels.cache.get(debugchid).send(confirmation);
-        let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
-        if (result.rowCount == 0) // first time donation
-        {
-            await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
-            if (campaign > 0) {
-                embed()
-            }
-        }
-        else
-        {
-            await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
-            if (campaign == 0 && result.rows[0][table_metadata.vote] !== null) {  // auto update embed
-                embed()
-            }
-        }
-        res.sendStatus(200);
-    }
-    catch (err)
-    {
-        console.error(err.stack)
-        res.sendStatus(400);
-    }    
-} );
+const confessions = new Set();
+
+// app.post( '/', async function(req, res) {
+//     try {
+//         if (campaign == -1) return
+//         // console.log(req.body.data)
+//         let don_data = JSON.parse(req.body.data)
+//         let don_email = don_data.email.toLowerCase()
+//         let confirmation = `Received ${don_data.amount} from ${don_email}`
+//         console.log(confirmation);
+//         bot.channels.cache.get(debugchid).send(confirmation);
+//         let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
+//         if (result.rowCount == 0) // first time donation
+//         {
+//             await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
+//             if (campaign > 0) {
+//                 embed()
+//             }
+//         }
+//         else
+//         {
+//             await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
+//             if (campaign == 0 && result.rows[0][table_metadata.vote] !== null) {  // auto update embed
+//                 embed()
+//             }
+//         }
+//         res.sendStatus(200);
+//     }
+//     catch (err)
+//     {
+//         console.error(err.stack)
+//         res.sendStatus(400);
+//     }    
+// } );
 
 async function registerVote(cn, user_id, username, vote)
 {
@@ -236,7 +240,6 @@ async function useCredit(user_id, username) {
     let amount = result.rows[0]["amount"]
     await pg_client.query(`UPDATE Credit SET ${table_metadata.amount} = 0 WHERE ${table_metadata.user_id} = $1 ;`, [user_id])
     result = await pg_client.query(`UPDATE ${table_metadata.name} SET amount = amount + $2 WHERE ${table_metadata.user_id} = $1`, [user_id, amount])
-    console.log(JSON.stringify(result))
     if (result.rowCount == 0) {
         await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.user_id}, ${table_metadata.username}, ${table_metadata.amount} ) VALUES ( $1, $2, $3 ) ;`, [user_id, username, amount])
     }
@@ -268,12 +271,51 @@ async function do_message_vote(message, voter_id, vote) {
             message.guild.members.fetch(message.author.id).then((member) => {
                 member.timeout(1000 * 60 * num_mins)
                 .then(message.reply("People didn't like this, you have been timed out for " + num_mins + " minutes."))
-                .then(setTimeout(() => member.timeout(null), 1000 * 60 * num_mins))
+                .then(setTimeout(() => member.timeout(null).catch(), 1000 * 60 * num_mins))
                 .catch(err => console.error('connection error', err.stack))
             })
             .catch(err => message.reply("Something broke while trying to make you shut up..."))
         }
     }
+}
+
+async function talk(message) {
+    return new Promise((resolve, reject) => {
+        var postData = JSON.stringify({
+            "prompt": message,
+            "max_tokens": 50,
+            "stop_sequences": ['.\n', '?\n']
+        });    
+        var options = {
+        hostname: "api.cohere.ai",
+        path: "/v1/generate",
+        method: 'POST',
+        headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer RQFHrtyLOClxW0SHEKYokn6UBUBlefpeeG7MAzqm'
+            }
+        };    
+        let response = []    
+        var req = https.request(options, (res) => {      
+            if (res.statusCode < 200 || res.statusCode > 299) {
+                return reject("<:rengar_confusion:1115059377297178696>")
+            }  
+            res.on('data', (d) => {
+                response.push(d)
+            });
+            res.on('end', (d) => {
+                resolve(JSON.parse(Buffer.concat(response).toString().trim())["generations"][0]["text"])
+            })
+        });    
+        
+        req.on('error', (e) => {
+            console.error(e);
+            reject("Ahri Bot broke.")
+        });    
+        req.write(postData);
+        req.end();
+    });
 }
 
 
@@ -292,7 +334,6 @@ bot.on("messageCreate", async (message) =>
     if(!message.guild)
     {
         console.log(message.author.tag + ": " + message.content);
-        if (campaign == -1) return
         try {
             let contents = message.content.trim()
             let cn = bot.channels.cache.get(debugchid);
@@ -344,6 +385,9 @@ bot.on("messageCreate", async (message) =>
         .then(sent_message => stick_messages.get(message.channelId)[0] = sent_message.id)  // update map with new message id
         .catch(console.error);
     }
+
+    // talk    
+    if (message.mentions.has(bot.user)) talk(message.content.replace("<@993911649511690330>", "Ahri Bot").trim()).then((response) => message.reply(response)).catch((response) => message.reply(response))
 
 
     // commands
@@ -452,4 +496,4 @@ try {
 }
 
 bot.login(_token)
-app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );
+// app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );

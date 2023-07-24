@@ -283,8 +283,7 @@ async function talk(message) {
     return new Promise((resolve, reject) => {
         var postData = JSON.stringify({
             "prompt": message,
-            "max_tokens": 50,
-            "stop_sequences": ['.\n', '?\n']
+            "max_tokens": 50
         });    
         var options = {
         hostname: "api.cohere.ai",
@@ -299,13 +298,17 @@ async function talk(message) {
         let response = []    
         var req = https.request(options, (res) => {      
             if (res.statusCode < 200 || res.statusCode > 299) {
+                res.text().then(e => console.log(e))
                 return reject("<:rengar_confusion:1115059377297178696>")
             }  
             res.on('data', (d) => {
                 response.push(d)
             });
             res.on('end', (d) => {
-                resolve(JSON.parse(Buffer.concat(response).toString().trim())["generations"][0]["text"])
+                let reply = JSON.parse(Buffer.concat(response).toString().trim())["generations"][0]["text"]
+                let length = Math.max(reply.lastIndexOf('.'), reply.lastIndexOf('?'), reply.lastIndexOf('!'))
+                if (length > -1) reply = reply.slice(0, length + 1)
+                resolve(reply)
             })
         });    
         

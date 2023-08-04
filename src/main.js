@@ -36,7 +36,7 @@ const table_metadata = {
     amount: "amount"
 }
 
-const vote_options = [1, 2, 3, 4, 5, 6]
+const vote_options = []
 
 const stick_messages = new Map();  // channelId: [messageId, contents]
 
@@ -50,8 +50,6 @@ var embed_message_id = null
 const PORT = process.env.PORT || 4000;
 
 var campaign = -1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
-
-const confessions = new Set();
 
 // app.post( '/', async function(req, res) {
 //     try {
@@ -344,8 +342,8 @@ bot.on("messageCreate", async (message) =>
             let response = "Unrecognized command."
             if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(cn, contents.toLowerCase(), message.author.id, message.author.tag);
             else if (campaign == 0 && vote_options.includes(parseInt(contents))) response = await registerVote(cn, message.author.id, message.author.tag, contents);
-            else if (campaign > 0 && contents === "use credit") response = await useCredit(message.author.id, message.author.tag);
-            else if (contents === "check credit") response = await checkCredit(message.author.id);
+            else if (campaign > 0 && contents.toLowerCase() === "use credit") response = await useCredit(message.author.id, message.author.tag);
+            else if (contents.toLowerCase() === "check credit") response = await checkCredit(message.author.id);
             bot.users.fetch(message.author.id, false).then((user) => {
                 user.send(response);
             });
@@ -390,7 +388,7 @@ bot.on("messageCreate", async (message) =>
     }
 
     // talk    
-    if (message.mentions.has(bot.user)) talk(message.content.replace("<@993911649511690330>", "Ahri Bot").trim()).then((response) => message.reply(response)).catch((response) => message.reply(response))
+    if (message.mentions.has(bot.user)) talk("You are Ahri Bot. " + message.content.replace("<@993911649511690330>", "Ahri Bot").trim()).then((response) => message.reply(response)).catch((response) => message.reply(response))
 
 
     // commands

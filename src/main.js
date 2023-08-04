@@ -4,14 +4,11 @@ const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MES
 const fs = require('fs');
 const path = require('path');
 var https = require('https');
+var http = require('http');
+var qs = require('querystring')
 const debugchid = '994038938035556444';
 const serverid = '747424654615904337';
 
-// TODO remove dependency on express
-// const express = require("express");
-// const app = express();
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
 
 const pg = require('pg');
 const _db = process.env.DATABASE_URL || "postgresql://postgres:N9r9INaxC3gmXp7HZjfj@containers-us-west-57.railway.app:6196/railway";
@@ -28,9 +25,9 @@ pg_client
 // CREATE TABLE Verification061423 ( email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, vote INTEGER, amount NUMERIC(5, 2) DEFAULT 0 ) ;
 // CREATE TABLE Verification071123 ( email VARCHAR(255) UNIQUE, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, amount NUMERIC(5, 2) DEFAULT 0 ) ;
 const table_metadata = {
-    name: "Verification071123",
+    name: "Verification080423",
     email: "email",
-    username: "username",
+    username: "username",   
     user_id: "user_id",
     vote: "vote",
     amount: "amount"
@@ -49,40 +46,55 @@ var embed_message_id = null
 
 const PORT = process.env.PORT || 4000;
 
-var campaign = -1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
+var campaign = 1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
 
-// app.post( '/', async function(req, res) {
-//     try {
-//         if (campaign == -1) return
-//         // console.log(req.body.data)
-//         let don_data = JSON.parse(req.body.data)
-//         let don_email = don_data.email.toLowerCase()
-//         let confirmation = `Received ${don_data.amount} from ${don_email}`
-//         console.log(confirmation);
-//         bot.channels.cache.get(debugchid).send(confirmation);
-//         let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
-//         if (result.rowCount == 0) // first time donation
-//         {
-//             await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, don_data.amount])
-//             if (campaign > 0) {
-//                 embed()
-//             }
-//         }
-//         else
-//         {
-//             await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(don_data.amount), don_email])
-//             if (campaign == 0 && result.rows[0][table_metadata.vote] !== null) {  // auto update embed
-//                 embed()
-//             }
-//         }
-//         res.sendStatus(200);
-//     }
-//     catch (err)
-//     {
-//         console.error(err.stack)
-//         res.sendStatus(400);
-//     }    
-// } );
+const donator_role = "Cowgirl Coomer"
+
+
+http.createServer(async function(req, res) {
+     try {
+        if (campaign == -1 || req.method != "POST") {
+            res.writeHead(400);
+            res.end()
+            return
+        }
+        let data = []
+        req.on('data', (d) => {
+            data.push(d)
+        });
+        req.on('end', async function(d) {
+            data = JSON.parse(qs.unescape(Buffer.concat(data)).slice(5))
+            let don_email = data.email.toLowerCase()
+            let confirmation = `Received ${data.amount} from ${don_email}`
+            console.log(confirmation);
+            bot.channels.cache.get(debugchid).send(confirmation);
+            let result = await pg_client.query(`SELECT * FROM ${table_metadata.name} WHERE ${table_metadata.email} = $1 ;`, [don_email])
+            if (result.rowCount == 0) // first time donation
+            {
+                await pg_client.query(`INSERT INTO ${table_metadata.name} ( ${table_metadata.email}, ${table_metadata.amount} ) VALUES ( $1, $2 ) ;`, [don_email, data.amount])
+                if (campaign > 0) {
+                    embed()
+                }
+            }
+            else
+            {
+                await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.amount} = $1 WHERE ${table_metadata.email} = $2 ;`, [parseFloat(result.rows[0][table_metadata.amount]) + parseFloat(data.amount), don_email])
+                if (campaign > 0 || (campaign == 0 && result.rows[0][table_metadata.vote] !== null)) {  // auto update embed
+                    embed()
+                }
+            }
+            res.writeHead(200);
+            res.end()
+        });
+     }
+     catch (err)
+     {
+         console.error(err.stack)
+         res.writeHead(500);
+         res.end()
+     }    
+}).listen(PORT); 
+
 
 async function registerVote(cn, user_id, username, vote)
 {
@@ -134,19 +146,7 @@ async function verifyUser(cn, email, user_id, username)
             {
                 await pg_client.query(`UPDATE ${table_metadata.name} SET ${table_metadata.user_id} = $1, ${table_metadata.username} = $2 WHERE ${table_metadata.email} = $3 ;`, [user_id, username, email])
                 cn.send(`${username} verified successfully with email ${email}`);
-                // assign roles
-                let guild = bot.guilds.cache.get(serverid);
-                if (!guild) return cn.send("Failed to find guild");
-
-                let member = await guild.members.fetch(user_id);
-                if (!member) return cn.send("Failed to find member");
-                
-                let role1 = guild.roles.cache.find(r => r.name == 'Cool');
-                let role2 = guild.roles.cache.find(r => r.name == 'Volibear Enjoyer');                
-                if (!role1 || !role2) return cn.send("Failed to find role");
-
-                member.roles.add(role1);
-                member.roles.add(role2);
+                assign_donator(user_id)
 
                 return (campaign == 0) ? "Successfully verified, now cast your vote." : "Successfully verified.";
             }
@@ -157,6 +157,21 @@ async function verifyUser(cn, email, user_id, username)
         console.error(err.stack)
         cn.send(`An unknown error occured while trying to verify ${username} with email ${email}`);
         return 'An unknown error occured, please try again later'
+    }
+}
+
+async function assign_donator(user_id, cool = true) {
+    try {
+        let guild = bot.guilds.cache.get(serverid);
+    
+        let member = await guild.members.fetch(user_id);
+        
+        if (cool === true) member.roles.add(guild.roles.cache.find(r => r.name == 'Cool'));
+        member.roles.add(guild.roles.cache.find(r => r.name == donator_role));
+    }
+    catch (err)
+    {
+        console.error(err.stack)
     }
 }
 
@@ -211,7 +226,9 @@ async function create_embed_campaign() {
         }]}
 }
 
-async function embed() {    
+async function embed() {
+    // TODO remove this
+    return
     let embed_message = "Something broke :("
     try {
         let campaign_channel = bot.channels.cache.get("1113124813138051242")
@@ -244,11 +261,7 @@ async function useCredit(user_id, username) {
     let confirmation = `${username} used $${amount} of credit`
     console.log(confirmation);
     bot.channels.cache.get(debugchid).send(confirmation);
-    // assign role
-    let guild = bot.guilds.cache.get(serverid);
-    let member = await guild.members.fetch(user_id);
-    let role = guild.roles.cache.find(r => r.name == 'Volibear Enjoyer');
-    member.roles.add(role);
+    assign_donator(user_id, false)
     embed()
     return `You have successfully applied $${amount} of credit.`
 }
@@ -388,7 +401,7 @@ bot.on("messageCreate", async (message) =>
     }
 
     // talk    
-    if (message.mentions.has(bot.user)) talk("You are Ahri Bot. " + message.content.replace("<@993911649511690330>", "Ahri Bot").trim()).then((response) => message.reply(response)).catch((response) => message.reply(response))
+    if (message.mentions.has(bot.user)) talk("You are Ahri Bot. " + message.cleanContent.trim()).then((response) => message.reply(response)).catch((response) => message.reply(response))
 
 
     // commands
@@ -412,23 +425,23 @@ bot.on("messageCreate", async (message) =>
         embed()
     }
 
-    // if (cmd == "querydb")
-    // {
-    //     var query = param.join(" ");
-    //     pg_client.query(query).then(async (result) => {
-    //         console.log(result)
-    //         let splitstuff = JSON.stringify(result.rows, null, 4).match(/(.|\r\n|\n){1,1998}/g); // just in case regex counts differently or discord is retarded (or both)
-    //         for (const chunk in splitstuff) {
-    //             if (Object.hasOwnProperty.call(splitstuff, chunk)) {
-    //                 const e = splitstuff[chunk];
-    //                 await message.channel.send(e);
-    //             }
-    //         }            
-    //     }).catch(err => {
-    //         console.error(err.stack)
-    //         message.channel.send("Query error")
-    //     });
-    // }
+    if (cmd == "querydb")
+    {
+        var query = param.join(" ");
+        pg_client.query(query).then(async (result) => {
+            console.log(result)
+            let splitstuff = JSON.stringify(result.rows, null, 4).match(/(.|\r\n|\n){1,1998}/g); // just in case regex counts differently or discord is retarded (or both)
+            for (const chunk in splitstuff) {
+                if (Object.hasOwnProperty.call(splitstuff, chunk)) {
+                    const e = splitstuff[chunk];
+                    await message.channel.send(e);
+                }
+            }            
+        }).catch(err => {
+            console.error(err.stack)
+            message.channel.send("Query error")
+        });
+    }
 
     if (cmd == "stick")
     {
@@ -482,6 +495,9 @@ bot.on("messageReactionAdd", async (reaction, user) => {
     if (reaction.emoji.name === '⬇️' || reaction.emoji.name === '⬆️') {
         do_message_vote(reaction.message, user.id, reaction.emoji.name)
     }
+    else if (reaction.message.channelId == '747426199780982791' && reaction.emoji.name === '👍' && staff_ids.has(user.id)) {
+        assign_donator(reaction.message.author.id, false)
+    }
 })
 
 
@@ -497,4 +513,3 @@ try {
 }
 
 bot.login(_token)
-// app.listen( PORT, () => console.log( "Node.js server started on port ", PORT ) );

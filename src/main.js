@@ -294,7 +294,7 @@ async function talk(message) {
     return new Promise((resolve, reject) => {
         var postData = JSON.stringify({
             "prompt": message,
-            "max_tokens": 50
+            "max_tokens": 200
         });    
         var options = {
         hostname: "api.cohere.ai",
@@ -317,8 +317,8 @@ async function talk(message) {
             });
             res.on('end', (d) => {
                 let reply = JSON.parse(Buffer.concat(response).toString().trim())["generations"][0]["text"]
-                let length = Math.max(reply.lastIndexOf('.'), reply.lastIndexOf('?'), reply.lastIndexOf('!'))
-                if (length > -1) reply = reply.slice(0, length + 1)
+                // let length = Math.max(reply.lastIndexOf('.'), reply.lastIndexOf('?'), reply.lastIndexOf('!'))
+                // if (length > -1) reply = reply.slice(0, length + 1)
                 resolve(reply)
             })
         });    
@@ -401,7 +401,7 @@ bot.on("messageCreate", async (message) =>
     }
 
     // talk    
-    if (message.mentions.has(bot.user)) talk("You are Ahri Bot. " + message.cleanContent.trim()).then((response) => message.reply(response)).catch((response) => message.reply(response))
+    if (message.mentions.has(bot.user)) talk("You are Ahri Bot. " + message.cleanContent.trim().replace('@Ahri Bot', '')).then((response) => message.reply(response)).catch((response) => message.reply(response))
 
 
     // commands

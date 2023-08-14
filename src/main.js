@@ -11,7 +11,7 @@ const serverid = '747424654615904337';
 
 
 const pg = require('pg');
-const _db = process.env.DATABASE_URL || "postgresql://postgres:N9r9INaxC3gmXp7HZjfj@containers-us-west-57.railway.app:6196/railway";
+const _db = process.env.DATABASE_URL
 const pg_client = new pg.Pool({
   connectionString: _db,
   ssl: {
@@ -46,9 +46,9 @@ var embed_message_id = null
 
 const PORT = process.env.PORT || 4000;
 
-var campaign = 1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
+var campaign = -1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
 
-const donator_role = "Cowgirl Coomer"
+const donator_role = null
 
 
 http.createServer(async function(req, res) {
@@ -177,12 +177,6 @@ async function assign_donator(user_id, cool = true) {
 
 async function create_embed_vote() {
     let fields = [
-        {"name": "1: Rell (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "2: Ashe (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "3: Withered Rose Syndra (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "4: Unbound Thresh (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "5: Astronaut Poppy (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
-        {"name": "6: Miss Fortune (0% / $0)", "value": "░░░░░░░░░░░░░░░░░░░░"}, 
     ];
     let result = await pg_client.query(`SELECT vote, SUM(amount) AS vote_amount, CAST(SUM(amount) AS FLOAT) / MAX(total) AS vote_percent FROM ${table_metadata.name} CROSS JOIN (SELECT SUM(amount) AS total FROM ${table_metadata.name} WHERE ${table_metadata.vote} IS NOT NULL) AS Total GROUP BY vote, total ORDER BY vote`)
     for (let i = 0; i < result.rowCount; i++)
@@ -196,12 +190,12 @@ async function create_embed_vote() {
     return { "embeds": [
         {
             "type": "rich",
-            "title": `10k Members Skin Campaign #2`,
+            "title": ``,
             "description": `Follow the instructions above to participate in the event.`,
             "color": 0x1eff00,
             "fields": fields,
             "image": {
-                "url": `https://cdn.discordapp.com/attachments/839085704658681937/1118666337108107264/campaign061423.png`,
+                // "url": ``,
                 "height": 0,
                 "width": 0
             }
@@ -214,12 +208,12 @@ async function create_embed_campaign() {
     return { "embeds": [
         {
             "type": "rich",
-            "title": `Volibear mini-campaign`,
+            "title": ``,
             "description": `Follow the instructions above to participate in the event.`,
             "color": 0x1eff00,
-            "fields": [{"name": `Volibear $${total} out of $${campaign}`, "value": "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓".slice(0, parseInt(total / campaign * 20 + 0.5)) + "░░░░░░░░░░░░░░░░░░░░".slice(parseInt(total / campaign * 20 + 0.5))}],
+            "fields": [{"name": ` $${total} out of $${campaign}`, "value": "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓".slice(0, parseInt(total / campaign * 20 + 0.5)) + "░░░░░░░░░░░░░░░░░░░░".slice(parseInt(total / campaign * 20 + 0.5))}],
             "image": {
-                "url": `https://cdn.discordapp.com/attachments/1071597203283513434/1128024497191125002/SPOILER_824fc435ad6339a35a3181798e4f10a8.jpg`,
+                // "url": ``,
                 "height": 0,
                 "width": 0
             }
@@ -227,8 +221,6 @@ async function create_embed_campaign() {
 }
 
 async function embed() {
-    // TODO remove this
-    return
     let embed_message = "Something broke :("
     try {
         let campaign_channel = bot.channels.cache.get("1113124813138051242")
@@ -309,8 +301,9 @@ async function talk(message) {
         let response = []    
         var req = https.request(options, (res) => {      
             if (res.statusCode < 200 || res.statusCode > 299) {
-                res.text().then(e => console.log(e))
-                return reject("<:rengar_confusion:1115059377297178696>")
+                console.log(res)
+                reject("<:rengar_confusion:1115059377297178696>")
+                return
             }  
             res.on('data', (d) => {
                 response.push(d)
@@ -320,6 +313,7 @@ async function talk(message) {
                 // let length = Math.max(reply.lastIndexOf('.'), reply.lastIndexOf('?'), reply.lastIndexOf('!'))
                 // if (length > -1) reply = reply.slice(0, length + 1)
                 resolve(reply)
+                return
             })
         });    
         
@@ -336,7 +330,7 @@ async function talk(message) {
 bot.on("ready", async () =>
 {
     console.log(`Logged in as ${bot.user.username}`);
-    bot.user.setPresence({ activities: [{ name: 'https://nsfwskins.github.io/' }], status: 'dnd' });
+    bot.user.setPresence({ activities: [{ name: '!help' }], status: 'online' });
 })
 
 bot.on("messageCreate", async (message) =>
@@ -386,7 +380,7 @@ bot.on("messageCreate", async (message) =>
     //     }
     // }
 
-    // message downvote
+    // message vote
     if (message.reference !== null && (message.content === '⬇️' || message.content === '⬆️')) {
         message.fetchReference().then(fetched_message => do_message_vote(fetched_message, message.author.id, message.content))
     }
@@ -471,20 +465,7 @@ bot.on("messageCreate", async (message) =>
         }
     }
     if (cmd == "setembed") embed_message_id = param[0]
-    // if (cmd == "purge_donators")
-    // {
-    //     try {
-    //         let role = message.guild.roles.cache.find(r => r.name == 'Donator');  
-    //         role.members.forEach((member, i) => { // Looping through the members of role.
-    //             setTimeout(() => {
-    //                 member.roles.remove(role); // Removing the role.
-    //             }, i * 100);
-    //         });
-    //     }
-    //     catch (err) {
-    //         console.error(err.stack)
-    //     }
-    // }
+
     if (cmd == "endcampaign") campaign = -1
 })
 

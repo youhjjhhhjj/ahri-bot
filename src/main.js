@@ -1,6 +1,6 @@
 'use strict';
-const { Client, Intents, MessageEmbed } = require('discord.js');
-const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS], partials: ['CHANNEL'] });
+const { Client, Intents } = require('discord.js');
+const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS], partials: ['CHANNEL'], allowedMentions: { parse: ['users'] } });
 const fs = require('fs');
 const path = require('path');
 var https = require('https');
@@ -476,9 +476,9 @@ bot.on("messageReactionAdd", async (reaction, user) => {
     if (reaction.emoji.name === '⬇️' || reaction.emoji.name === '⬆️') {
         do_message_vote(reaction.message, user.id, reaction.emoji.name)
     }
-    else if (reaction.message.channelId == '747426199780982791' && reaction.emoji.name === '👍' && staff_ids.has(user.id)) {
-        assign_donator(reaction.message.author.id, false)
-    }
+    // else if (reaction.message.channelId == '747426199780982791' && reaction.emoji.name === '👍' && staff_ids.has(user.id)) {  // meme review
+    //     assign_donator(reaction.message.author.id, false)
+    // }
 })
 
 

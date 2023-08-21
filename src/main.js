@@ -479,6 +479,12 @@ bot.on("messageReactionAdd", async (reaction, user) => {
     // else if (reaction.message.channelId == '747426199780982791' && reaction.emoji.name === '👍' && staff_ids.has(user.id)) {  // meme review
     //     assign_donator(reaction.message.author.id, false)
     // }
+    else if (reaction.emoji.name === "bonk" && reaction.count >= 5) {
+        if (reaction.message.member.roles.cache.has("1142589211392872620")) return
+        reaction.message.member.roles.add("1142589211392872620")
+        setTimeout(() => reaction.message.member.roles.remove("1142589211392872620").catch(), 1000 * 60 * 60)
+        bot.channels.cache.get("1139191006890299463").send(`${reaction.message.author} has been bonked.`);
+    }
 })
 
 

@@ -36,9 +36,17 @@ const table_metadata = {
 const vote_options = []
 
 const stick_messages = new Map();  // channelId: [messageId, contents]
+// CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE, message_content TEXT ) ;
+// populate stick messages
+pg_client.query(`SELECT * FROM StickyMessages`).then(data => {
+    data.rows.forEach(row => {
+        stick_messages.set(row["channel_id"], [row["message_id"], row["message_content"]])
+    })
+}).catch(err => console.error(err.stack))
 
 const user_timeouts = new Map();
 const message_votes = new Map();  // message_id: {'⬇️': Set[str], '⬆️': Set[str]}
+const user_bonks = new Map();
 
 const staff_ids = new Set(["603962299895775252", "328629962162700289", "534061021304717312", "447070898868977665"])
 
@@ -301,7 +309,7 @@ async function talk(message) {
         let response = []    
         var req = https.request(options, (res) => {      
             if (res.statusCode < 200 || res.statusCode > 299) {
-                console.log(res)
+                // console.log(res)
                 reject("<:rengar_confusion:1115059377297178696>")
                 return
             }  
@@ -382,7 +390,13 @@ bot.on("messageCreate", async (message) =>
 
     // message vote
     if (message.reference !== null && (message.content === '⬇️' || message.content === '⬆️')) {
-        message.fetchReference().then(fetched_message => do_message_vote(fetched_message, message.author.id, message.content))
+        try {            
+            message.fetchReference().then(fetched_message => do_message_vote(fetched_message, message.author.id, message.content))
+        }
+        catch (err)
+        {
+            console.error("Failed to time out " + message.author.tag)
+        }
     }
 
     // sticky message
@@ -390,7 +404,10 @@ bot.on("messageCreate", async (message) =>
     {
         message.channel.messages.delete(stick_messages.get(message.channelId)[0])
         message.channel.send("__**Stickied Message:**__\n" + stick_messages.get(message.channelId)[1])
-        .then(sent_message => stick_messages.get(message.channelId)[0] = sent_message.id)  // update map with new message id
+        .then(sent_message => {
+            stick_messages.get(message.channelId)[0] = sent_message.id            
+            pg_client.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [sent_message.id, message.channelId])
+        })  // update map and database with new message id
         .catch(console.error);
     }
 
@@ -439,30 +456,22 @@ bot.on("messageCreate", async (message) =>
 
     if (cmd == "stick")
     {
+        // TODO add compatibility for existing sticky
         let message_content = param.join(" ")
         message.channel.send("__**Stickied Message:**__\n" + message_content)
         .then(message => stick_messages.set(message.channelId, [message.id, message_content]))  // update map with message id
         .catch(console.error);
         message.channel.messages.delete(message.id)  // delete command message
+        // add to database
+        pg_client.query(`INSERT INTO StickyMessages VALUES ( $1, $2, $3 ) ;`, [message.channelId, message.id, message_content]).catch(err => console.error(err.stack))
     }
     if (cmd == "stickstop" && stick_messages.has(message.channelId))
     {
         message.channel.messages.delete(stick_messages.get(message.channelId)[0])  // delete stick message
         stick_messages.delete(message.channelId)  // update map
         message.channel.messages.delete(message.id)  // delete command message
-    }
-    if (cmd == "stickadd")
-    {
-        try {
-            let channel_id = param[0]
-            let message_id = param[1]
-            let message_content = param.slice(2).join(" ")
-            stick_messages.set(channel_id, [message_id, message_content])
-            console.log(stick_messages)
-        }
-        catch (err) {
-            console.error(err.stack)
-        }
+        // remove from database
+        pg_client.query(`DELETE FROM StickyMessages WHERE channel_id = $1 ;`, [message.channelId]).catch(err => console.error(err.stack))
     }
     if (cmd == "setembed") embed_message_id = param[0]
 
@@ -479,10 +488,16 @@ bot.on("messageReactionAdd", async (reaction, user) => {
     // else if (reaction.message.channelId == '747426199780982791' && reaction.emoji.name === '👍' && staff_ids.has(user.id)) {  // meme review
     //     assign_donator(reaction.message.author.id, false)
     // }
-    else if (reaction.emoji.name === "bonk" && reaction.count >= 5) {
-        if (reaction.message.member.roles.cache.has("1142589211392872620")) return
+    else if (reaction.emoji.name === "bonk" && reaction.message.channelId != "1139191006890299463" && reaction.count >= 5) {
+        console.log(user_bonks)
+        if (user_bonks.has(reaction.message.author.id) && user_bonks.get(reaction.message.author.id) >= reaction.message.createdTimestamp) return
+        user_bonks.set(reaction.message.author.id, reaction.message.createdTimestamp)
         reaction.message.member.roles.add("1142589211392872620")
-        setTimeout(() => reaction.message.member.roles.remove("1142589211392872620").catch(), 1000 * 60 * 60)
+        setTimeout(async () => {
+            let guild = bot.guilds.cache.get(serverid);
+            let member = await guild.members.fetch(reaction.message.author.id)
+            member.roles.remove("1142589211392872620").catch(err => console.error(err.stack))
+        }, 1000 * 60 * 60)
         bot.channels.cache.get("1139191006890299463").send(`${reaction.message.author} has been bonked.`);
     }
 })

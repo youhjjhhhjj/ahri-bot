@@ -9,7 +9,6 @@ var qs = require('querystring')
 const debugchid = '994038938035556444';
 const serverid = '747424654615904337';
 
-
 const pg = require('pg');
 const _db = process.env.DATABASE_URL
 const pg_client = new pg.Pool({
@@ -57,6 +56,8 @@ const PORT = process.env.PORT || 4000;
 var campaign = -1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
 
 const donator_role = null
+
+const protected_channels = new Set(["1113124813138051242", "822701232413474816", "747425931148132522", "747425887292620840", "748209748322811904", "1073408805666299974"])
 
 
 http.createServer(async function(req, res) {
@@ -378,15 +379,15 @@ bot.on("messageCreate", async (message) =>
     // record who posts to community-skins, exclude StickyBot
     if (message.channelId == "1073408805666299974" && message.author.id != "628400349979344919") bot.channels.cache.get(debugchid).send(`${message.author.tag} posted in #community-skins`)
 
-    // if (message.channelId == 747784406801842196) {  // commission-request
-    //     if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
-    //         message.delete()
-    //         return
-    //     }
-    //     else {
-    //         message.react("🔼").then(() => message.react("🔽"))//.then(submissions.set(message.id, 0))
-    //     }
-    // }
+    if (message.channelId == 747784406801842196) {  // commission-request
+        if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
+            message.delete()
+            return
+        }
+        else {
+            message.react("🔼").then(() => message.react("🔽"))
+        }
+    }
 
     // message vote
     if (message.reference !== null && (message.content === '⬇️' || message.content === '⬆️')) {
@@ -412,7 +413,7 @@ bot.on("messageCreate", async (message) =>
     }
 
     // talk    
-    if (message.mentions.has(bot.user)) talk("You are Ahri Bot. " + message.cleanContent.trim().replace('@Ahri Bot', '')).then((response) => message.reply(response)).catch((response) => message.reply(response))
+    if (message.mentions.has(bot.user)) talk(`@${message.author.username}: ${message.cleanContent.trim()} \n @Ahri Bot: `).then((response) => message.reply(response)).catch((response) => message.reply(response))
 
 
     // commands
@@ -500,6 +501,7 @@ bot.on("messageReactionAdd", async (reaction, user) => {
         }, 1000 * 60 * 60)
         bot.channels.cache.get("1139191006890299463").send(`${reaction.message.author} has been bonked.`);
     }
+    else if (reaction.emoji.name === '🆓' && protected_channels.has(reaction.message.channelId)) reaction.remove()
 })
 
 

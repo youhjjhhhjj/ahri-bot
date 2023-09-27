@@ -1,17 +1,6 @@
 'use strict';
 
-const pg = require('pg');
-const _db = process.env.DATABASE_URL
-const pg_client = new pg.Pool({
-  connectionString: _db,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
-pg_client
-  .connect()
-  .then(() => console.log('connected'))
-  .catch(err => console.error('connection error', err.stack))
+
 // CREATE TABLE Verification061423 ( email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, vote INTEGER, amount NUMERIC(5, 2) DEFAULT 0 ) ;
 // CREATE TABLE Verification071123 ( email VARCHAR(255) UNIQUE, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, amount NUMERIC(5, 2) DEFAULT 0 ) ;
 const table_metadata = {
@@ -22,6 +11,10 @@ const table_metadata = {
     vote: "vote",
     amount: "amount"
 }
+
+const vote_options = []
+
+var embed_message_id = null
 
 async function receiveDonation(req, res, campaign) {
     if (campaign == -1 || req.method != "POST") {

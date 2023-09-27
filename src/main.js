@@ -1,15 +1,15 @@
 'use strict';
-const { Client, Intents } = require('discord.js');
-const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS], partials: ['CHANNEL'], allowedMentions: { parse: ['users'] } });
+
 const fs = require('fs');
 const path = require('path');
 var https = require('https');
 var http = require('http');
 var qs = require('querystring')
-const debugchid = '994038938035556444';
-const serverid = '747424654615904337';
 
-const vote_options = []
+pg_client
+  .connect()
+  .then(() => console.log('connected'))
+  .catch(err => console.error('connection error', err.stack))
 
 const stick_messages = new Map();  // channelId: [messageId, contents]
 // CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE, message_content TEXT ) ;
@@ -20,13 +20,7 @@ pg_client.query(`SELECT * FROM StickyMessages`).then(data => {
     })
 }).catch(err => console.error(err.stack))
 
-const user_timeouts = new Map();
-const message_votes = new Map();  // message_id: {'⬇️': Set[str], '⬆️': Set[str]}
-const user_bonks = new Map();
-
 const staff_ids = new Set(["603962299895775252", "328629962162700289", "534061021304717312", "447070898868977665"])
-
-var embed_message_id = null
 
 const PORT = process.env.PORT || 4000;
 
@@ -49,30 +43,6 @@ http.createServer(async function(req, res) {
      }    
 }).listen(PORT); 
 
-
-async function do_message_vote(message, voter_id, vote) {
-    if (user_timeouts.has(message.author.id) && user_timeouts.get(message.author.id) >= message.createdTimestamp) return
-    if (!message_votes.has(message.id)) message_votes.set(message.id, {'⬇️': new Set(), '⬆️': new Set()})
-    let message_vote = message_votes.get(message.id)
-    message_vote[vote].add(voter_id)
-    if (message_vote['⬇️'].size - message_vote['⬆️'].size >= 5) {
-        let num_mins = message.createdTimestamp - user_timeouts.get(message.author.id) < 1000 * 60 * 60 ? 30 : 10  // if less than an hour from previous timeout, set 30 mins instead of 10
-        user_timeouts.set(message.author.id, message.createdTimestamp)
-        if (staff_ids.has(message.author.id)) message.reply("Shut up mod.");
-        else if (message.webhookId) message.reply("Shut up ... server?");
-        else if (message.author.bot) message.reply("Shut up bot.");
-        else {
-            console.log(`${message.author.tag} timed out`)
-            message.guild.members.fetch(message.author.id).then((member) => {
-                member.timeout(1000 * 60 * num_mins)
-                .then(message.reply("People didn't like this, you have been timed out for " + num_mins + " minutes."))
-                .then(setTimeout(() => member.timeout(null).catch(), 1000 * 60 * num_mins))
-                .catch(err => console.error('connection error', err.stack))
-            })
-            .catch(err => message.reply("Something broke while trying to make you shut up..."))
-        }
-    }
-}
 
 async function talk(message) {
     return new Promise((resolve, reject) => {
@@ -273,16 +243,7 @@ bot.on("messageReactionAdd", async (reaction, user) => {
     //     assign_donator(reaction.message.author.id, false)
     // }
     else if (reaction.emoji.name === "bonk" && reaction.message.channelId != "1139191006890299463" && reaction.count >= 5) {
-        console.log(user_bonks)
-        if (user_bonks.has(reaction.message.author.id) && user_bonks.get(reaction.message.author.id) >= reaction.message.createdTimestamp) return
-        user_bonks.set(reaction.message.author.id, reaction.message.createdTimestamp)
-        reaction.message.member.roles.add("1142589211392872620")
-        setTimeout(async () => {
-            let guild = bot.guilds.cache.get(serverid);
-            let member = await guild.members.fetch(reaction.message.author.id)
-            member.roles.remove("1142589211392872620").catch(err => console.error(err.stack))
-        }, 1000 * 60 * 60)
-        bot.channels.cache.get("1139191006890299463").send(`${reaction.message.author} has been bonked.`);
+        bonk(reaction.message)
     }
     else if (reaction.emoji.name === '🆓' && protected_channels.has(reaction.message.channelId)) reaction.remove()
 })

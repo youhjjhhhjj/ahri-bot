@@ -5,15 +5,15 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Ninfrock",
+  "author": "https://github.com/youhjjhhhjj",
   "license": "ISC",
   "dependencies": {
-    "discord.js": "^13.13.1",
+    "discord.js": "^14.13.0",
     "pg": "^8.7.3"
   },
   "engines": {
-    "node": "16.x",
-    "npm": "7.x"
+    "node": ">=16.11.0",
+    "npm": ">=8.0.0"
   },
   "repository": {
     "type": "git",

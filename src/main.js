@@ -4,31 +4,36 @@ const fs = require('fs');
 const path = require('path');
 var https = require('https');
 var http = require('http');
-var qs = require('querystring')
+var qs = require('querystring');
+const { Collection, Events } = require('discord.js');
 
+// importing from other files
 const { debugChannelId, protectedChannels, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
 const { doMessageVote, bonk } = require('./moderation.js');
 const { receiveDonation, registerVote, verifyUser, embed, checkCredit, useCredit } = require('./campaign.js');
 
+// discord login
 let _token = ""
 try {
     // local login
     let { token } = require('./token.json');
     _token = token;
-} catch (error) {
-    // railway login
+}
+catch (error) {
+    // cloud login
     _token = process.env.DISCORD_TOKEN;
 }
 abClient.login(_token)
 
+// connect to database
 pgClient
   .connect()
   .then(() => console.log('connected'))
   .catch(err => console.error('connection error', err.stack))
 
+// populate stick messages
 const stickMessages = new Map();  // channelId: [messageId, contents]
 // CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE, message_content TEXT ) ;
-// populate stick messages
 pgClient.query(`SELECT * FROM StickyMessages`).then(data => {
     data.rows.forEach(row => {
         stickMessages.set(row['channelId'], [row['messageId'], row['messageContent']])
@@ -99,13 +104,13 @@ async function talk(message) {
 }
 
 
-abClient.on('ready', async () =>
+abClient.on(Events.ClientReady, async () =>
 {
     console.log(`Logged in as ${abClient.user.username}`);
     abClient.user.setPresence({ activities: [{ name: '!help' }], status: 'online' });
-})
+});
 
-abClient.on('messageCreate', async (message) =>
+abClient.on(Events.MessageCreate, async (message) =>
 {
     if(message.author.bot || message.webhookId) return;
 
@@ -235,10 +240,10 @@ abClient.on('messageCreate', async (message) =>
         pgClient.query(`DELETE FROM StickyMessages WHERE channel_id = $1 ;`, [message.channelId]).catch(err => console.error(err.stack))
     }
     if (cmd == "endcampaign") campaign = -1
-})
+});
 
 
-abClient.on("messageReactionAdd", async (reaction, user) => {
+abClient.on(Events.MessageReactionAdd, async (reaction, user) => {
     // console.log(reaction)
     // if (reaction.message.channelId !== debugChannelId || reaction.emoji.name !== "⬇️") return  // debug
     if (reaction.emoji.name === '⬇️' || reaction.emoji.name === '⬆️') {
@@ -248,4 +253,4 @@ abClient.on("messageReactionAdd", async (reaction, user) => {
         bonk(reaction.message)
     }
     else if (reaction.emoji.name === '🆓' && protectedChannels.has(reaction.message.channelId)) reaction.remove()
-})
+});

@@ -17,19 +17,12 @@ catch (error) {
     _token = process.env.DISCORD_TOKEN;
 }
 
-const commands = [];
-const commandsDir = path.join(path.resolve(path.dirname(__dirname)), 'commands');
-const commandFiles = fs.readdirSync(commandsDir).filter(file => file.endsWith('.js'));
+const { commands } = require('../commands.js');
+const commandsList = [];
 // Grab the SlashCommandBuilder#toJSON() output of each command's data for deployment
-for (const file of commandFiles) {
-    let command = require(path.join(commandsDir, file));
-    if ('data' in command && 'execute' in command) {
-        commands.push(command.data.toJSON());
-        console.log(`Successfully loaded command at ${file}`);
-    }
-    else {
-        console.error(`Failed to load command at ${file}`);
-    }
+for (let command in commands) {
+    commandsList.push(commands[command].toJSON());
+    console.log(`Successfully loaded command ${command}`);
 }
 
 // Construct and prepare an instance of the REST module
@@ -38,12 +31,12 @@ const rest = new REST().setToken(_token);
 // and deploy your commands!
 (async () => {
 	try {
-		console.log(`Started refreshing ${commands.length} application (/) commands.`);
+		console.log(`Started refreshing ${commandsList.length} application (/) commands.`);
 
 		// The put method is used to fully refresh all commands in the guild with the current set
 		const data = await rest.put(
 			Routes.applicationGuildCommands(abId, serverId),
-			{ body: commands },
+			{ body: commandsList },
 		);
 
 		console.log(`Successfully reloaded ${data.length} application (/) commands.`);

@@ -12,20 +12,10 @@ const { debugChannelId, protectedChannels, staffIds, vstaffIds, abClient, pgClie
 const { doMessageVote, bonk } = require('./moderation.js');
 const { receiveDonation, registerVote, verifyUser, embed, checkCredit, useCredit } = require('./campaign.js');
 
-// registering commands
-const commands = new Collection();
-const commandFiles = fs.readdirSync(path.join(__dirname, 'commands')).filter(file => file.endsWith('.js'));
-
-for (const file of commandFiles) {
-	let command = require('./commands/' + file);
-	// Set a new item in the Collection with the key as the command name and the value as the exported module
-	if ('data' in command && 'execute' in command) {
-		commands.set(command.data.name, command);
-	}
-    else {
-		console.error(`Failed to load command at ${file}`);
-	}
-}
+// setting commands
+const { commands } = require('./commands.js');
+const commandsMap = new Collection();
+commandsMap.set(commands.test.name, async (interaction) => await interaction.reply('👍'));
 
 // discord login
 let _token = ""
@@ -127,13 +117,13 @@ abClient.on(Events.ClientReady, async () =>
 
 abClient.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
-    let command = commands.get(interaction.commandName);
+    let command = commandsMap.get(interaction.commandName);
 	if (!command) {
 		console.error(`No command matching ${interaction.commandName} was found.`);
 		return;
 	}
     try {
-		await command.execute(interaction);
+		await command(interaction);
 	} 
     catch (error) {
 		console.error(error);
@@ -223,32 +213,9 @@ abClient.on(Events.MessageCreate, async (message) =>
     let params = cmd.slice(1);
     cmd = cmd[0].toLowerCase();
 
-    if(cmd == "test")
-    {
-        message.channel.send('👍');
-    }
-
     if (cmd == "embed")
     {
         embed()
-    }
-
-    if (cmd == "querydb")
-    {
-        var query = params.join(" ");
-        pgClient.query(query).then(async (result) => {
-            console.log(result)
-            let splitStuff = JSON.stringify(result.rows, null, 4).match(/(.|\r\n|\n){1,1998}/g); // just in case regex counts differently or discord is weird (or both)
-            for (const chunk in splitStuff) {
-                if (Object.hasOwnProperty.call(splitStuff, chunk)) {
-                    const e = splitStuff[chunk];
-                    await message.channel.send(e);
-                }
-            }            
-        }).catch(err => {
-            console.error(err.stack)
-            message.channel.send("Query error")
-        });
     }
 
     if (cmd == "stick")

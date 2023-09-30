@@ -12,6 +12,21 @@ const { debugChannelId, protectedChannels, staffIds, vstaffIds, abClient, pgClie
 const { doMessageVote, bonk } = require('./moderation.js');
 const { receiveDonation, registerVote, verifyUser, embed, checkCredit, useCredit } = require('./campaign.js');
 
+// registering commands
+const commands = new Collection();
+const commandFiles = fs.readdirSync(path.join(__dirname, 'commands')).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+	let command = require('./commands/' + file);
+	// Set a new item in the Collection with the key as the command name and the value as the exported module
+	if ('data' in command && 'execute' in command) {
+		commands.set(command.data.name, command);
+	}
+    else {
+		console.error(`Failed to load command at ${file}`);
+	}
+}
+
 // discord login
 let _token = ""
 try {
@@ -108,6 +123,22 @@ abClient.on(Events.ClientReady, async () =>
 {
     console.log(`Logged in as ${abClient.user.username}`);
     abClient.user.setPresence({ activities: [{ name: '!help' }], status: 'online' });
+});
+
+abClient.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+    let command = commands.get(interaction.commandName);
+	if (!command) {
+		console.error(`No command matching ${interaction.commandName} was found.`);
+		return;
+	}
+    try {
+		await command.execute(interaction);
+	} 
+    catch (error) {
+		console.error(error);
+		await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+	}
 });
 
 abClient.on(Events.MessageCreate, async (message) =>

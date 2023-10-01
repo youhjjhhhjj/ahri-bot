@@ -6,7 +6,7 @@ const { REST, Routes } = require('discord.js');
 
 const { abId, serverId } = require('../globals.js');
 
-let _token = ""
+let _token = "";
 try {
     // local login
     let { token } = require('../token.json');

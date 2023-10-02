@@ -19,8 +19,11 @@ commandsMap.set(commands.test.name, async (interaction) => await interaction.rep
 commandsMap.set(commands.stick.name, stick);
 commandsMap.set(commands.unstick.name, unstick);
 commandsMap.set(commands.embed.name, async (interaction) => await embed().then(() => interaction.reply({content: "Successfully created embed.", ephemeral: true})));
+commandsMap.set(commands.anon.name, anon);
 
 const stickHeader = "__**Stickied Message:**__\n";
+
+const anons = new Collection();
 
 // discord login
 let _token = "";
@@ -134,6 +137,20 @@ async function unstick(interaction) {
     await interaction.reply({content: "Successfully unsticked message.", ephemeral: true});
 }
 
+async function anon(interaction) {
+    let messageContent = interaction.options.getString('message');
+    if (anons.has(interaction.user.id) && interaction.createdTimestamp - anons.get(interaction.user.id) < 5 * 60 * 1000) {
+        console.log(`${interaction.user.tag} tried to send anonymously: ${messageContent}`);
+        let remainingTime = 5 * 60 - Math.trunc(interaction.createdTimestamp / 1000 - anons.get(interaction.user.id) / 1000);
+        await interaction.reply({content: `You must wait ${remainingTime} seconds before doing this again.`, ephemeral: true});
+        return;
+    }
+    console.log(`${interaction.user.tag} sent anonymously: ${messageContent}`);
+    await interaction.channel.send(messageContent);
+    anons.set(interaction.user.id, interaction.createdTimestamp);
+    await interaction.reply({content: "Sent anonymous message.", ephemeral: true});
+}
+
 
 abClient.on(Events.ClientReady, async () =>
 {
@@ -170,14 +187,15 @@ abClient.on(Events.MessageCreate, async (message) =>
             let contents = message.content.trim();
             let debugChannel = abClient.channels.cache.get(debugChannelId);
             if(!debugChannel) return console.log("Failed to find channel");
-            let response = "Unrecognized command.";
-            if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
-            else if (campaign == 0 && vote_options.includes(parseInt(contents))) response = await registerVote(debugChannel, message.author.id, message.author.tag, contents);
-            else if (campaign > 0 && contents.toLowerCase() === "use credit") response = await useCredit(message.author.id, message.author.tag);
-            else if (contents.toLowerCase() === "check credit") response = await checkCredit(message.author.id);
-            abClient.users.fetch(message.author.id, false).then((user) => {
-                user.send(response);
-            });
+            debugChannel.send(`${message.author.tag}: ${message.content}`);
+            // let response = "Unrecognized command.";
+            // if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
+            // else if (campaign == 0 && vote_options.includes(parseInt(contents))) response = await registerVote(debugChannel, message.author.id, message.author.tag, contents);
+            // else if (campaign > 0 && contents.toLowerCase() === "use credit") response = await useCredit(message.author.id, message.author.tag);
+            // else if (contents.toLowerCase() === "check credit") response = await checkCredit(message.author.id);
+            // abClient.users.fetch(message.author.id, false).then((user) => {
+            //     user.send(response);
+            // });
             return;
         }
         catch (err)

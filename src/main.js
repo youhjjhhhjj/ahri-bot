@@ -8,7 +8,7 @@ var qs = require('querystring');
 const { Collection, Events } = require('discord.js');
 
 // importing from other files
-const { debugChannelId, protectedChannels, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
+const { debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
 const { doMessageVote, bonk } = require('./moderation.js');
 const { receiveDonation, registerVote, verifyUser, embed, checkCredit, useCredit } = require('./campaign.js');
 
@@ -20,6 +20,7 @@ commandsMap.set(commands.stick.name, stick);
 commandsMap.set(commands.unstick.name, unstick);
 commandsMap.set(commands.embed.name, async (interaction) => await embed().then(() => interaction.reply({content: "Successfully created embed.", ephemeral: true})));
 commandsMap.set(commands.anon.name, anon);
+commandsMap.set(commands.timeout.name, timeout);
 
 const stickHeader = "__**Stickied Message:**__\n";
 
@@ -151,11 +152,21 @@ async function anon(interaction) {
     await interaction.reply({content: "Sent anonymous message.", ephemeral: true});
 }
 
+// TODO move to moderation commands file
+async function timeout(interaction) {
+    let duration = interaction.options.getInteger('duration');
+    let member = interaction.options.getMember('member');
+    await member.timeout(1000 * 60 * duration);
+    abClient.channels.cache.get(modChannelId).send(`${member.user.tag} has been timed out for ${duration} minutes by ${interaction.user.tag}.`);
+    interaction.channel.send(`${member.user.tag} has been timed out for ${duration} minutes by a moderator.`);
+    await interaction.reply({content: "Successfully timed out user.", ephemeral: true});
+}
+
 
 abClient.on(Events.ClientReady, async () =>
 {
     console.log(`Logged in as ${abClient.user.username}`);
-    abClient.user.setPresence({ activities: [{ name: '!help' }], status: 'online' });
+    abClient.user.setPresence({ activities: [{ name: '/help' }], status: 'online' });
 });
 
 abClient.on(Events.InteractionCreate, async (interaction) => {
@@ -170,7 +181,7 @@ abClient.on(Events.InteractionCreate, async (interaction) => {
 	} 
     catch (error) {
 		console.error(error);
-		await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+		await interaction.reply({ content: 'There was an error while executing this command.', ephemeral: true });
 	}
 });
 
@@ -183,11 +194,11 @@ abClient.on(Events.MessageCreate, async (message) =>
     if(!message.guild)
     {
         console.log(`${message.author.tag}: ${message.content}`);
-        try {
-            let contents = message.content.trim();
-            let debugChannel = abClient.channels.cache.get(debugChannelId);
-            if(!debugChannel) return console.log("Failed to find channel");
-            debugChannel.send(`${message.author.tag}: ${message.content}`);
+        // try {
+        //     let contents = message.content.trim();
+        //     let debugChannel = abClient.channels.cache.get(debugChannelId);
+        //     if(!debugChannel) return console.log("Failed to find channel");
+        //     debugChannel.send(`${message.author.tag}: ${message.content}`);
             // let response = "Unrecognized command.";
             // if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
             // else if (campaign == 0 && vote_options.includes(parseInt(contents))) response = await registerVote(debugChannel, message.author.id, message.author.tag, contents);
@@ -196,12 +207,12 @@ abClient.on(Events.MessageCreate, async (message) =>
             // abClient.users.fetch(message.author.id, false).then((user) => {
             //     user.send(response);
             // });
-            return;
-        }
-        catch (err)
-        {
-            console.error(err.stack);
-        }
+        // }
+        // catch (err)
+        // {
+        //     console.error(err.stack);
+        // }
+        return;
     }
 
 
@@ -237,7 +248,7 @@ abClient.on(Events.MessageCreate, async (message) =>
     }
 
     // talk    
-    if (!protectedChannels.has(message.channelId) && message.mentions.has(abClient.user)) talk(`@${message.author.username}: ${message.cleanContent.trim()} \n @Ahri Bot: `).then((response) => message.reply(response)).catch((response) => message.reply(response));
+    if (!protectedChannelIds.has(message.channelId) && message.mentions.has(abClient.user)) talk(`@${message.author.username}: ${message.cleanContent.trim()} \n @Ahri Bot: `).then((response) => message.reply(response)).catch((response) => message.reply(response));
 });
 
 
@@ -249,5 +260,5 @@ abClient.on(Events.MessageReactionAdd, async (reaction, user) => {
     else if (reaction.emoji.name === 'bonk' && reaction.message.channelId != '1139191006890299463' && reaction.count >= 5) {
         bonk(reaction.message);
     }
-    else if (reaction.emoji.name === '🆓' && protectedChannels.has(reaction.message.channelId)) reaction.remove();
+    else if (reaction.emoji.name === '🆓' && protectedChannelIds.has(reaction.message.channelId)) reaction.remove();
 });

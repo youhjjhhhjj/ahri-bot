@@ -10,6 +10,10 @@ const commands = {
     embed: new SlashCommandBuilder().setName('embed').setDescription("Posts the campaign embed").setDefaultMemberPermissions('0'),
     anon: new SlashCommandBuilder().setName('anon').setDescription("Sends an anonymous message")
         .addStringOption(option => option.setName('message').setDescription("The message to send").setRequired(true)),
+    timeout: new SlashCommandBuilder().setName('timeout').setDescription("Time out a member for 30 minutes (for minor rule-breaking) or 12 hours (for staff to review and ban)")
+        .addUserOption(option => option.setName('member').setDescription("The member to time out").setRequired(true))
+        .addIntegerOption(option => option.setName('duration').setDescription("How long to time out").setRequired(true).addChoices({name: 'short', value: 30}, {name: 'long', value: 720}))
+        .setDefaultMemberPermissions('0'),
 };
 
 module.exports = { commands };

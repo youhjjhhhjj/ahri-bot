@@ -21,6 +21,7 @@ commandsMap.set(commands.unstick.name, unstick);
 commandsMap.set(commands.embed.name, async (interaction) => await embed().then(() => interaction.reply({content: "Successfully created embed.", ephemeral: true})));
 commandsMap.set(commands.anon.name, anon);
 commandsMap.set(commands.timeout.name, timeout);
+commandsMap.set(commands.deleteMessage.name, deleteMessage);
 
 const stickHeader = "__**Stickied Message:**__\n";
 
@@ -157,9 +158,22 @@ async function timeout(interaction) {
     let duration = interaction.options.getInteger('duration');
     let member = interaction.options.getMember('member');
     await member.timeout(1000 * 60 * duration);
-    abClient.channels.cache.get(modChannelId).send(`${member.user.tag} has been timed out for ${duration} minutes by ${interaction.user.tag}.`);
+    abClient.channels.cache.get(modChannelId).send(`${member.user.toString()} has been timed out for ${duration} minutes by ${interaction.user.tag}.`);
     interaction.channel.send(`${member.user.tag} has been timed out for ${duration} minutes by a moderator.`);
     await interaction.reply({content: "Successfully timed out user.", ephemeral: true});
+}
+
+async function deleteMessage(interaction) {
+    let messageId = interaction.options.getString('message_id');
+    let message = await interaction.channel.messages.fetch(messageId);
+    if (!message) {
+        await interaction.reply({content: "Message could not be found.", ephemeral: true});
+        return;
+    }
+    await message.delete();
+    abClient.channels.cache.get(modChannelId).send(`A message by ${message.author.toString()} in ${interaction.channel.toString()} has been deleted by ${interaction.user.tag}.`);
+    interaction.channel.send(`A message has been deleted by a moderator.`);
+    await interaction.reply({content: "Successfully deleted message.", ephemeral: true});
 }
 
 

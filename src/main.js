@@ -9,7 +9,7 @@ const { Collection, Events } = require('discord.js');
 
 // importing from other files
 const { debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
-const { doMessageVote, bonk } = require('./moderation.js');
+const { doMessageVote, doVoteBonk, moderatorBonk, timeout, deleteMessage } = require('./moderation.js');
 const { receiveDonation, registerVote, verifyUser, embed, checkCredit, useCredit } = require('./campaign.js');
 
 // setting commands
@@ -22,8 +22,9 @@ commandsMap.set(commands.embed.name, async (interaction) => await embed().then((
 commandsMap.set(commands.anon.name, anon);
 commandsMap.set(commands.timeout.name, timeout);
 commandsMap.set(commands.deleteMessage.name, deleteMessage);
+commandsMap.set(commands.bonk.name, moderatorBonk)
 
-const stickHeader = "__**Stickied Message:**__\n";
+const stickyHeader = "__**Stickied Message:**__\n";
 
 const anons = new Collection();
 
@@ -47,12 +48,12 @@ pgClient
   .catch(err => console.error('connection error', err.stack));
 
 // populate stick messages
-const stickMessages = new Map();  // channelId: [messageId, contents]
+const stickyMessages = new Map();  // channelId: [messageId, contents]
 // CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE, message_content TEXT ) ;
 pgClient.query(`SELECT * FROM StickyMessages`).then(data => {
     console.log(data.rows);
     data.rows.forEach(row => {
-        stickMessages.set(row['channelId'], [row['messageId'], row['messageContent']]);
+        stickyMessages.set(row['channel_id'], [row['message_id'], row['message_content']]);
     })
 }).catch(err => console.error(err.stack));
 
@@ -121,19 +122,19 @@ async function talk(message) {
 async function stick(interaction) {
     let messageId = interaction.options.getString('message_id');
     let message = await interaction.channel.messages.fetch(messageId);
-    message.channel.send(stickHeader + message.content).then((stickMessage) => {
-        stickMessages.set(stickMessage.channelId, [stickMessage.id, message.content]);  // update map with message id
+    message.channel.send(stickyHeader + message.content).then((stickyMessage) => {
+        stickyMessages.set(stickyMessage.channelId, [stickyMessage.id, message.content]);  // update map with message id
         message.channel.messages.delete(messageId);  // delete original message
         // add to database
-        pgClient.query(`INSERT INTO StickyMessages VALUES ( $1, $2, $3 ) ;`, [stickMessage.channelId, stickMessage.id, message.content]).catch(err => console.error(err.stack));
+        pgClient.query(`INSERT INTO StickyMessages VALUES ( $1, $2, $3 ) ;`, [stickyMessage.channelId, stickyMessage.id, message.content]).catch(err => console.error(err.stack));
     })
     .catch(err => console.error(err.stack));
     await interaction.reply({content: "Successfully sticked message.", ephemeral: true});
 }
 
 async function unstick(interaction) {
-    message.channel.messages.delete(stickMessages.get(interaction.channelId)[0]);  // delete stick message
-    stickMessages.delete(message.channelId);  // update map
+    message.channel.messages.delete(stickyMessages.get(interaction.channelId)[0]);  // delete stick message
+    stickyMessages.delete(message.channelId);  // update map
     // remove from database
     pgClient.query(`DELETE FROM StickyMessages WHERE channel_id = $1 ;`, [interaction.channelId]);
     await interaction.reply({content: "Successfully unsticked message.", ephemeral: true});
@@ -152,30 +153,6 @@ async function anon(interaction) {
     anons.set(interaction.user.id, interaction.createdTimestamp);
     await interaction.reply({content: "Sent anonymous message.", ephemeral: true});
 }
-
-// TODO move to moderation commands file
-async function timeout(interaction) {
-    let duration = interaction.options.getInteger('duration');
-    let member = interaction.options.getMember('member');
-    await member.timeout(1000 * 60 * duration);
-    abClient.channels.cache.get(modChannelId).send(`${member.user.toString()} has been timed out for ${duration} minutes by ${interaction.user.tag}.`);
-    interaction.channel.send(`${member.user.tag} has been timed out for ${duration} minutes by a moderator.`);
-    await interaction.reply({content: "Successfully timed out user.", ephemeral: true});
-}
-
-async function deleteMessage(interaction) {
-    let messageId = interaction.options.getString('message_id');
-    let message = await interaction.channel.messages.fetch(messageId);
-    if (!message) {
-        await interaction.reply({content: "Message could not be found.", ephemeral: true});
-        return;
-    }
-    await message.delete();
-    abClient.channels.cache.get(modChannelId).send(`A message by ${message.author.toString()} in ${interaction.channel.toString()} has been deleted by ${interaction.user.tag}.`);
-    interaction.channel.send(`A message has been deleted by a moderator.`);
-    await interaction.reply({content: "Successfully deleted message.", ephemeral: true});
-}
-
 
 abClient.on(Events.ClientReady, async () =>
 {
@@ -250,12 +227,12 @@ abClient.on(Events.MessageCreate, async (message) =>
     }
 
     // sticky message
-    if (stickMessages.has(message.channelId))
+    if (stickyMessages.has(message.channelId))
     {
-        message.channel.messages.delete(stickMessages.get(message.channelId)[0]).catch(e => console.error(e.stack));
-        message.channel.send(stickHeader + stickMessages.get(message.channelId)[1])
+        message.channel.messages.delete(stickyMessages.get(message.channelId)[0]).catch(e => console.error(e.stack));
+        message.channel.send(stickyHeader + stickyMessages.get(message.channelId)[1])
         .then(sent_message => {
-            stickMessages.get(message.channelId)[0] = sent_message.id;
+            stickyMessages.get(message.channelId)[0] = sent_message.id;
             pgClient.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [sent_message.id, message.channelId]).catch(e => console.error(e.stack));
         })  // update map and database with new message id
         .catch(e => console.error(e.stack));
@@ -272,7 +249,7 @@ abClient.on(Events.MessageReactionAdd, async (reaction, user) => {
         doMessageVote(reaction.message, user.id, reaction.emoji.name);
     }
     else if (reaction.emoji.name === 'bonk' && reaction.message.channelId != '1139191006890299463' && reaction.count >= 5) {
-        bonk(reaction.message);
+        doVoteBonk(reaction.message);
     }
     else if (reaction.emoji.name === '🆓' && protectedChannelIds.has(reaction.message.channelId)) reaction.remove();
 });

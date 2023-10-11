@@ -1,6 +1,6 @@
 'use strict';
 
-const { staffIds, abClient } = require('./globals.js');
+const { staffIds, abClient, modChannelId } = require('./globals.js');
 
 const userTimeouts = new Map();
 const messageVotes = new Map();  // message_id: {'⬇️': Set[str], '⬆️': Set[str]}
@@ -31,15 +31,50 @@ async function doMessageVote(message, voter_id, vote) {
     }
 }
 
-async function bonk(message) {
-    if (userBonks.has(message.author.id) && userBonks.get(message.author.id) >= message.createdTimestamp) return;
-    userBonks.set(message.author.id, message.createdTimestamp);
-    message.member.roles.add('1142589211392872620');
+async function bonk(member, duration) {
+    member.roles.add('1142589211392872620');
     setTimeout(async () => {
-        let member = await message.guild.members.fetch(message.author.id);
         member.roles.remove('1142589211392872620').catch(err => console.error(err.stack));
-    }, 1000 * 60 * 60);
-    abClient.channels.cache.get('1139191006890299463').send(`${message.author} has been bonked.`);
+    }, 1000 * 60 * duration);
 }
 
-module.exports = { doMessageVote, bonk };
+async function doVoteBonk(message) {
+    if (userBonks.has(message.author.id) && userBonks.get(message.author.id) >= message.createdTimestamp) return;
+    userBonks.set(message.author.id, message.createdTimestamp);
+    let member = message.member;
+    bonk(member, 30);
+    abClient.channels.cache.get('1139191006890299463').send(`${message.author} has been bonked for 30 minutes.`);
+}
+
+async function moderatorBonk(interaction) {
+    let member = interaction.options.getMember('member');
+    bonk(member, 15);
+    abClient.channels.cache.get(modChannelId).send(`${member.user.toString()} has been bonked for 15 minutes by ${interaction.user.tag}.`);
+    abClient.channels.cache.get('1139191006890299463').send(`${member.user.toString()} has been bonked for 15 minutes by a moderator.`);
+    await interaction.reply({content: "Successfully bonked user.", ephemeral: true});
+}
+
+async function timeout(interaction) {
+    let duration = interaction.options.getInteger('duration');
+    let member = interaction.options.getMember('member');
+    let reason = interaction.options.getString('reason');
+    await member.timeout(1000 * 60 * duration);
+    abClient.channels.cache.get(modChannelId).send(`${member.user.toString()} has been timed out for ${duration} minutes by ${interaction.user.tag}. \nReason: ${reason}`);
+    interaction.channel.send(`${member.user.tag} has been timed out for ${duration} minutes by a moderator.`);
+    await interaction.reply({content: "Successfully timed out user.", ephemeral: true});
+}
+
+async function deleteMessage(interaction) {
+    let messageId = interaction.options.getString('message_id');
+    let message = await interaction.channel.messages.fetch(messageId);
+    let reason = interaction.options.getString('reason');
+    await message.delete().catch(e => {
+        interaction.reply({content: "Message could not be found.", ephemeral: true});
+        return;
+    });
+    abClient.channels.cache.get(modChannelId).send(`A message by ${message.author.toString()} in ${interaction.channel.toString()} has been deleted by ${interaction.user.tag}. \nReason: ${reason}`);
+    interaction.channel.send(`A message has been deleted by a moderator.`);
+    await interaction.reply({content: "Successfully deleted message.", ephemeral: true});
+}
+
+module.exports = { doMessageVote, doVoteBonk, moderatorBonk, timeout, deleteMessage };

@@ -21,14 +21,14 @@ Ahri Bot contains two reaction-based actions for users to moderate themselves
 ## Ko-fi integration
 Ahri Bot contains many functionalities to link to a Ko-fi account
 
-Step 1: Copy the HTTP server's url to your Ko-fi webhook endpoint (https://ko-fi.com/manage/webhooks  )
+Step 1: Copy the HTTP server's url to your Ko-fi webhook endpoint (https://ko-fi.com/manage/webhooks)  
 Step 2: Set the `campaign` variable to the donation goal  
 Step 3: Call `/embed` with the url of the image you want to be set
 
 Now when you receive a donation, the embed will automatically update towards the amount. If a donator messages Ahri Bot (modal input is currently being worked on) with their Ko-fi email, they will be assigned the donator role.
 
 ## Conversation
-Ahri Bot can be linked to a Cohere LLM (https://cohere.com/) to respond to users
+Ahri Bot can be linked to a Cohere LLM (https://cohere.com) to respond to users
 
 Create an account and replace the POST header Authorization field value with your bearer token, and any time the bot is mentioned in a non-protected channel, it will send the input to the language model and respond with the response.  
 Cohere can be substituted with other LLM APIs with minor modifications to the POST request options.

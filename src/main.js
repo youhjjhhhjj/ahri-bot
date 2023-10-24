@@ -57,6 +57,8 @@ pgClient.query(`SELECT * FROM StickyMessages`).then(data => {
     })
 }).catch(err => console.error(err.stack));
 
+var stickyLock = new Set();  // channelId
+
 const PORT = process.env.PORT || 4000;
 
 var campaign = -1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
@@ -133,8 +135,9 @@ async function stick(interaction) {
 }
 
 async function unstick(interaction) {
-    message.channel.messages.delete(stickyMessages.get(interaction.channelId)[0]);  // delete stick message
-    stickyMessages.delete(message.channelId);  // update map
+    let channel = abClient.channels.cache.get(interaction.channelId);
+    channel.messages.delete(stickyMessages.get(interaction.channelId)[0]);  // delete stick message
+    stickyMessages.delete(interaction.channelId);  // update map
     // remove from database
     pgClient.query(`DELETE FROM StickyMessages WHERE channel_id = $1 ;`, [interaction.channelId]);
     await interaction.reply({content: "Successfully unsticked message.", ephemeral: true});
@@ -227,15 +230,17 @@ abClient.on(Events.MessageCreate, async (message) =>
     }
 
     // sticky message
-    if (stickyMessages.has(message.channelId))
+    if (stickyMessages.has(message.channelId) && !stickyLock.has(message.channelId))
     {
+        stickyLock.add(message.channelId)
         message.channel.messages.delete(stickyMessages.get(message.channelId)[0]).catch(e => console.error(e.stack));
         message.channel.send(stickyHeader + stickyMessages.get(message.channelId)[1])
         .then(sent_message => {
             stickyMessages.get(message.channelId)[0] = sent_message.id;
             pgClient.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [sent_message.id, message.channelId]).catch(e => console.error(e.stack));
         })  // update map and database with new message id
-        .catch(e => console.error(e.stack));
+        .catch(e => console.error(e.stack))
+        .finally(() => stickyLock.delete(message.channelId));
     }
 
     // talk    

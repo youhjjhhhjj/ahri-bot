@@ -2,7 +2,7 @@
 
 var qs = require('querystring');
 
-const { debugChannelId, abClient, pgClient } = require('../globals.js');
+const { serverId, debugChannelId, abClient, pgClient } = require('../globals.js');
 const { campaignTypes, GoalCampaign, VoteCampaign } = require('./campaign-classes.js');
 
 // CREATE TABLE Verification061423 ( email VARCHAR(255) PRIMARY KEY, username VARCHAR(255) UNIQUE, user_id VARCHAR(255) UNIQUE, vote INTEGER, amount NUMERIC(5, 2) DEFAULT 0 ) ;
@@ -124,7 +124,7 @@ async function verifyUser(cn, email, user_id, username)
 
 async function assignPremiumRole(user_id, cool = true) {
     try {
-        let guild = abClient.guilds.cache.get(serverid);    
+        let guild = abClient.guilds.cache.get(serverId);    
         let member = await guild.members.fetch(user_id);        
         if (cool === true) member.roles.add(guild.roles.cache.find(r => r.name == 'Cool'));
         member.roles.add(guild.roles.cache.find(r => r.name == premiumRole));

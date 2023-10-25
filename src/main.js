@@ -51,7 +51,6 @@ pgClient
 const stickyMessages = new Map();  // channelId: [messageId, contents]
 // CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE, message_content TEXT ) ;
 pgClient.query(`SELECT * FROM StickyMessages`).then(data => {
-    console.log(data.rows);
     data.rows.forEach(row => {
         stickyMessages.set(row['channel_id'], [row['message_id'], row['message_content']]);
     })

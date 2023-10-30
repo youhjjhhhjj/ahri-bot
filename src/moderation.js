@@ -23,7 +23,7 @@ async function doMessageVote(message, voter_id, vote) {
             message.guild.members.fetch(message.author.id).then((member) => {
                 member.timeout(1000 * 60 * num_mins)
                 .then(message.reply(`People didn't like this, you have been timed out for ${num_mins} minutes.`))
-                .then(setTimeout(() => member.timeout(null).catch(), 1000 * 60 * num_mins))
+                .then(setTimeout(() => member.timeout(null).catch(err => console.error(`Error while untiming out ${message.author.tag}`)), 1000 * 60 * num_mins))
                 .catch(err => console.error(`Error while timing out ${message.author.tag}`));
             })
             .catch(err => message.reply("Something broke while trying to make you shut up..."));

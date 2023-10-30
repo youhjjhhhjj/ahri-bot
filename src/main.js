@@ -4,13 +4,12 @@ const fs = require('fs');
 const path = require('path');
 var https = require('https');
 var http = require('http');
-var qs = require('querystring');
 const { Collection, Events } = require('discord.js');
 
 // importing from other files
 const { debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
 const { doMessageVote, doVoteBonk, moderatorBonk, timeout, deleteMessage } = require('./moderation.js');
-const { receiveDonation, registerVote, verifyUser, embed, checkCredit, useCredit } = require('./campaign.js');
+const { receiveDonation, registerVote, verifyUser, startCampaign, endCampaign, checkCredit, useCredit } = require('./campaign/campaign.js');
 
 // setting commands
 const { commands } = require('./commands.js');
@@ -18,7 +17,8 @@ const commandsMap = new Collection();
 commandsMap.set(commands.test.name, async (interaction) => await interaction.reply('👍'));
 commandsMap.set(commands.stick.name, stick);
 commandsMap.set(commands.unstick.name, unstick);
-commandsMap.set(commands.embed.name, async (interaction) => await embed().then(() => interaction.reply({content: "Successfully created embed.", ephemeral: true})));
+commandsMap.set(commands.startCampaign.name, startCampaign);
+commandsMap.set(commands.endCampaign.name, endCampaign);
 commandsMap.set(commands.anon.name, anon);
 commandsMap.set(commands.timeout.name, timeout);
 commandsMap.set(commands.deleteMessage.name, deleteMessage);
@@ -51,7 +51,6 @@ pgClient
 const stickyMessages = new Map();  // channelId: [messageId, contents]
 // CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE, message_content TEXT ) ;
 pgClient.query(`SELECT * FROM StickyMessages`).then(data => {
-    console.log(data.rows);
     data.rows.forEach(row => {
         stickyMessages.set(row['channel_id'], [row['message_id'], row['message_content']]);
     })
@@ -61,12 +60,10 @@ var stickyLock = new Set();  // channelId
 
 const PORT = process.env.PORT || 4000;
 
-var campaign = -1;  // -1 if no campaign, 0 if vote campaign, > 0 if goal campaign (price)
-
 
 http.createServer(async function(req, res) {
     try {
-        receiveDonation(req, res, campaign);
+        receiveDonation(req, res);
     }
     catch (err)
     {
@@ -188,24 +185,24 @@ abClient.on(Events.MessageCreate, async (message) =>
     if(!message.guild)
     {
         console.log(`${message.author.tag}: ${message.content}`);
-        // try {
-        //     let contents = message.content.trim();
-        //     let debugChannel = abClient.channels.cache.get(debugChannelId);
-        //     if(!debugChannel) return console.log("Failed to find channel");
-        //     debugChannel.send(`${message.author.tag}: ${message.content}`);
-            // let response = "Unrecognized command.";
-            // if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
-            // else if (campaign == 0 && vote_options.includes(parseInt(contents))) response = await registerVote(debugChannel, message.author.id, message.author.tag, contents);
-            // else if (campaign > 0 && contents.toLowerCase() === "use credit") response = await useCredit(message.author.id, message.author.tag);
-            // else if (contents.toLowerCase() === "check credit") response = await checkCredit(message.author.id);
-            // abClient.users.fetch(message.author.id, false).then((user) => {
-            //     user.send(response);
-            // });
-        // }
-        // catch (err)
-        // {
-        //     console.error(err.stack);
-        // }
+        try {
+            let contents = message.content.trim();
+            let debugChannel = abClient.channels.cache.get(debugChannelId);
+            if(!debugChannel) return console.log("Failed to find channel");
+            debugChannel.send(`${message.author.tag}: ${message.content}`);
+            let response = "Unrecognized command.";
+            if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
+            else if (!isNaN(contents)) response = await registerVote(debugChannel, message.author.id, message.author.tag, contents);
+            else if (contents.toLowerCase() === "use credit") response = await useCredit(message.author.id, message.author.tag);
+            else if (contents.toLowerCase() === "check credit") response = await checkCredit(message.author.id);
+            abClient.users.fetch(message.author.id, false).then((user) => {
+                user.send(response);
+            });
+        }
+        catch (err)
+        {
+            console.error(err.stack);
+        }
         return;
     }
 
@@ -214,15 +211,15 @@ abClient.on(Events.MessageCreate, async (message) =>
 
     // if(message.guild && message.channel.id == debugChannelId) console.log(message)  // debug
 
-    if (campaign > 0 && message.channelId == '747784406801842196') {  // commission-request
-        if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
-            message.delete();
-            return;
-        }
-        else {
-            message.react('🔼').then(() => message.react('🔽'));
-        }
-    }
+    // if (message.channelId == '747784406801842196') {  // commission-request
+    //     if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
+    //         message.delete();
+    //         return;
+    //     }
+    //     else {
+    //         message.react('🔼').then(() => message.react('🔽'));
+    //     }
+    // }
 
     // message vote
     if (message.reference !== null && (message.content === '⬇️' || message.content === '⬆️')) {       

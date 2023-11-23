@@ -38,12 +38,11 @@ async function bonk(member, duration) {
     }, 1000 * 60 * duration);
 }
 
-async function doVoteBonk(message) {
-    if (userBonks.has(message.author.id) && userBonks.get(message.author.id) >= message.createdTimestamp) return;
-    userBonks.set(message.author.id, Date.now());
-    let member = message.member;
+async function doVoteBonk(member, timestamp) {
+    if (userBonks.has(member.id) && userBonks.get(member.id) >= timestamp) return;
+    userBonks.set(member.id, Date.now());
     bonk(member, 30);
-    abClient.channels.cache.get('1139191006890299463').send(`${message.author} has been bonked for 30 minutes.`);
+    abClient.channels.cache.get('1139191006890299463').send(`${member.user} has been bonked for 30 minutes.`);
 }
 
 async function moderatorBonk(interaction) {

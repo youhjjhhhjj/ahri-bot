@@ -14,7 +14,6 @@ const tableMetadata = {
     amount: 'amount'
 };
 
-var embedMessageId = null;
 var premiumRole = null;
 var campaign = null;
 
@@ -82,7 +81,7 @@ async function registerVote(cn, user_id, username, vote)
     }
     return "Something went wrong, contact staff for assistance.";
 }
-
+premiumRole
 
 async function verifyUser(cn, email, user_id, username)
 {
@@ -141,8 +140,8 @@ async function embed() {
     try {
         let campaignChannel = abClient.channels.cache.get('1113124813138051242');
         embed_message = await campaign.createEmbed();
-        if (embedMessageId !== null) campaignChannel.messages.fetch(embedMessageId).then(message => message.edit(embed_message));
-        else campaignChannel.send(embed_message).then((embed) => embedMessageId = embed.id);
+        if (campaign.messageId !== null) campaignChannel.messages.fetch(campaign.messageId).then(message => message.edit(embed_message));
+        else campaignChannel.send(embed_message).then((embed) => campaign.messageId = embed.id);
     }
     catch (err)
     {

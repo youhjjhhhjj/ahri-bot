@@ -16,6 +16,7 @@ class Campaign {
         this.name = name;
         this.id = id;
         this.embedImage = embedImage;
+        this.messageId = null;
     }
 
     async createEmbed() {

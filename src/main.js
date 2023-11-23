@@ -7,7 +7,7 @@ var http = require('http');
 const { Collection, Events } = require('discord.js');
 
 // importing from other files
-const { debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
+const { abId, serverId, debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
 const { doMessageVote, doVoteBonk, moderatorBonk, timeout, deleteMessage } = require('./moderation.js');
 const { receiveDonation, registerVote, verifyUser, startCampaign, endCampaign, checkCredit, useCredit } = require('./campaign/campaign.js');
 
@@ -26,7 +26,8 @@ commandsMap.set(commands.bonk.name, moderatorBonk)
 
 const stickyHeader = "__**Stickied Message:**__\n";
 
-const anons = new Collection();
+const anonUsers = new Collection();
+const anonMessages = new Collection();
 
 // discord login
 let _token = "";
@@ -68,7 +69,7 @@ http.createServer(async function(req, res) {
     catch (err)
     {
         console.error(err.stack);
-        res.writeHead(500);;
+        res.writeHead(500);
         res.end();
     }    
 }).listen(PORT); 
@@ -142,15 +143,17 @@ async function unstick(interaction) {
 
 async function anon(interaction) {
     let messageContent = interaction.options.getString('message');
-    if (anons.has(interaction.user.id) && interaction.createdTimestamp - anons.get(interaction.user.id) < 5 * 60 * 1000) {
+    if (anonUsers.has(interaction.user.id) && interaction.createdTimestamp - anonUsers.get(interaction.user.id) < 5 * 60 * 1000) {
         console.log(`${interaction.user.tag} tried to send anonymously: ${messageContent}`);
-        let remainingTime = 5 * 60 - Math.trunc(interaction.createdTimestamp / 1000 - anons.get(interaction.user.id) / 1000);
+        let remainingTime = 5 * 60 - Math.trunc(interaction.createdTimestamp / 1000 - anonUsers.get(interaction.user.id) / 1000);
         await interaction.reply({content: `You must wait ${remainingTime} seconds before doing this again.`, ephemeral: true});
         return;
     }
     console.log(`${interaction.user.tag} sent anonymously: ${messageContent}`);
-    await interaction.channel.send(messageContent);
-    anons.set(interaction.user.id, interaction.createdTimestamp);
+    interaction.channel.send(messageContent).then(message => {
+        anonMessages.set(message.id, interaction.user.id);
+        anonUsers.set(interaction.user.id, message.createdTimestamp);
+    });
     await interaction.reply({content: "Sent anonymous message.", ephemeral: true});
 }
 
@@ -168,7 +171,7 @@ abClient.on(Events.InteractionCreate, async (interaction) => {
 		return;
 	}
     try {
-		await command(interaction);
+		await command(interaction).catch(err => console.error(err.stack));
 	} 
     catch (error) {
 		console.error(error);
@@ -250,8 +253,15 @@ abClient.on(Events.MessageReactionAdd, async (reaction, user) => {
     if (reaction.emoji.name === '⬇️' || reaction.emoji.name === '⬆️') {
         doMessageVote(reaction.message, user.id, reaction.emoji.name);
     }
-    else if (reaction.emoji.name === 'bonk' && reaction.message.channelId != '1139191006890299463' && reaction.count >= 5) {
-        doVoteBonk(reaction.message);
+    else if (reaction.emoji.name === 'bonk' && reaction.message.channelId === '747425672779006043' && reaction.count >= 5) {
+        let member = reaction.message.member;
+        if (member.id == abId) {
+            let guild = abClient.guilds.cache.get(serverId);
+            if (!guild) return;
+            member = guild.members.cache.get(anonMessages.get(reaction.message.id));
+        }
+        if (!member) return;
+        doVoteBonk(member, reaction.message.createdTimestamp);
     }
     else if (reaction.emoji.name === '🆓' && protectedChannelIds.has(reaction.message.channelId)) reaction.remove();
 });

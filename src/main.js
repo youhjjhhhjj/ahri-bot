@@ -72,13 +72,22 @@ http.createServer(async function(req, res) {
         res.writeHead(500);
         res.end();
     }    
-}).listen(PORT); 
+}).listen(PORT);
 
 
-async function talk(message) {
+async function formatPrompt(message) {
+    let prompt = `@${message.author.username}: ${message.cleanContent.trim()}\n"@Ahri Bot: `;
+    if (message.reference !== null) {
+        let replyMessage = await message.fetchReference();
+        prompt = `${replyMessage.author.username}: ${replyMessage.content}\n` + prompt;
+    }
+    return prompt
+}
+
+async function talk(prompt) {
     return new Promise((resolve, reject) => {
         var postData = JSON.stringify({
-            'prompt': message,
+            'prompt': prompt,
             'max_tokens': 200
         });    
         var options = {
@@ -95,7 +104,7 @@ async function talk(message) {
         var req = https.request(options, (res) => {      
             if (res.statusCode < 200 || res.statusCode > 299) {
                 // console.log(res)
-                reject('<:rengar_confusion:1115059377297178696>');
+                reject();
                 return;
             }  
             res.on('data', (d) => {
@@ -214,37 +223,37 @@ abClient.on(Events.MessageCreate, async (message) =>
 
     // if(message.guild && message.channel.id == debugChannelId) console.log(message)  // debug
 
-    // if (message.channelId == '747784406801842196') {  // commission-request
-    //     if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
-    //         message.delete();
-    //         return;
-    //     }
-    //     else {
-    //         message.react('🔼').then(() => message.react('🔽'));
-    //     }
-    // }
+    if (message.channelId == '747784406801842196') {  // event-submissions
+        if (!message.content || message.content.length < 1 || message.attachments.size < 1) {
+            message.delete();
+            return;
+        }
+        else {
+            message.react('🔼').then(() => message.react('🔽'));
+        }
+    }
 
     // message vote
     if (message.reference !== null && (message.content === '⬇️' || message.content === '⬆️')) {       
-        message.fetchReference().then(fetched_message => doMessageVote(fetched_message, message.author.id, message.content));
+        message.fetchReference().then(replyMessage => doMessageVote(replyMessage, message.author.id, message.content));
     }
 
     // sticky message
     if (stickyMessages.has(message.channelId) && !stickyLock.has(message.channelId))
     {
         stickyLock.add(message.channelId)
-        message.channel.messages.delete(stickyMessages.get(message.channelId)[0]).catch(e => console.error(e.stack));
+        message.channel.messages.delete(stickyMessages.get(message.channelId)[0]).catch(err => console.error(err.stack));
         message.channel.send(stickyHeader + stickyMessages.get(message.channelId)[1])
-        .then(sent_message => {
-            stickyMessages.get(message.channelId)[0] = sent_message.id;
-            pgClient.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [sent_message.id, message.channelId]).catch(e => console.error(e.stack));
+        .then(sentMessage => {
+            stickyMessages.get(message.channelId)[0] = sentMessage.id;
+            pgClient.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [sentMessage.id, message.channelId]).catch(err => console.error(err.stack));
         })  // update map and database with new message id
-        .catch(e => console.error(e.stack))
+        .catch(err => console.error(err.stack))
         .finally(() => stickyLock.delete(message.channelId));
     }
 
     // talk    
-    if (!protectedChannelIds.has(message.channelId) && message.mentions.has(abClient.user)) talk(`@${message.author.username}: ${message.cleanContent.trim()} \n @Ahri Bot: `).then((response) => message.reply(response)).catch((response) => message.reply(response));
+    if (!protectedChannelIds.has(message.channelId) && message.mentions.has(abClient.user)) formatPrompt(message).then(prompt => talk(prompt)).then((response) => message.reply(response)).catch(err => message.reply('<:rengar_confusion:1115059377297178696>'));
 });
 
 

@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 var https = require('https');
 var http = require('http');
-const { Collection, Events } = require('discord.js');
+const { ActionRowBuilder, Collection, Events } = require('discord.js');
 
 // importing from other files
 const { abId, serverId, debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
@@ -22,7 +22,12 @@ commandsMap.set(commands.endCampaign.name, endCampaign);
 commandsMap.set(commands.anon.name, anon);
 commandsMap.set(commands.timeout.name, timeout);
 commandsMap.set(commands.deleteMessage.name, deleteMessage);
-commandsMap.set(commands.bonk.name, moderatorBonk)
+commandsMap.set(commands.bonk.name, moderatorBonk);
+
+const { buttons } = require('./buttons.js');
+const buttonsMap = new Collection();
+buttonsMap.set(buttons.getArtistRole.data.custom_id, async (interaction) => assignRole(interaction, '1191146819749695568'));
+buttonsMap.set(buttons.getModderRole.data.custom_id, async (interaction) => assignRole(interaction, '824039891120816188'));
 
 const stickyHeader = "__**Stickied Message:**__\n";
 
@@ -49,11 +54,11 @@ pgClient
   .catch(err => console.error('connection error', err.stack));
 
 // populate stick messages
-const stickyMessages = new Map();  // channelId: [messageId, contents]
-// CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE, message_content TEXT ) ;
+const stickyMessages = new Map();  // channelId: messageId
+// CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE ) ;
 pgClient.query(`SELECT * FROM StickyMessages`).then(data => {
     data.rows.forEach(row => {
-        stickyMessages.set(row['channel_id'], [row['message_id'], row['message_content']]);
+        stickyMessages.set(row['channel_id'], row['message_id']);
     })
 }).catch(err => console.error(err.stack));
 
@@ -131,11 +136,21 @@ async function talk(prompt) {
 async function stick(interaction) {
     let messageId = interaction.options.getString('message_id');
     let message = await interaction.channel.messages.fetch(messageId);
-    message.channel.send(stickyHeader + message.content).then((stickyMessage) => {
-        stickyMessages.set(stickyMessage.channelId, [stickyMessage.id, message.content]);  // update map with message id
+    let messageObject = {
+        content: message.content,
+        embeds: message.embeds,
+        components: message.components,
+        attachments: message.attachments,
+        stickers: message.stickers,
+    }
+    messageObject.content = stickyHeader + message.content;
+    if (message.channelId === '747426244773281884') messageObject.components.push(new ActionRowBuilder().addComponents(buttons.getArtistRole));
+    else if (message.channelId === '1073408805666299974') messageObject.components.push(new ActionRowBuilder().addComponents(buttons.getModderRole));
+    message.channel.send(messageObject).then((stickyMessage) => {
+        stickyMessages.set(stickyMessage.channelId, stickyMessage.id);  // update map with message id
         message.channel.messages.delete(messageId);  // delete original message
         // add to database
-        pgClient.query(`INSERT INTO StickyMessages VALUES ( $1, $2, $3 ) ;`, [stickyMessage.channelId, stickyMessage.id, message.content]).catch(err => console.error(err.stack));
+        pgClient.query(`INSERT INTO StickyMessages VALUES ( $1, $2 ) ;`, [stickyMessage.channelId, stickyMessage.id]).catch(err => console.error(err.stack));
     })
     .catch(err => console.error(err.stack));
     await interaction.reply({content: "Successfully sticked message.", ephemeral: true});
@@ -143,7 +158,7 @@ async function stick(interaction) {
 
 async function unstick(interaction) {
     let channel = abClient.channels.cache.get(interaction.channelId);
-    channel.messages.delete(stickyMessages.get(interaction.channelId)[0]);  // delete stick message
+    channel.messages.delete(stickyMessages.get(interaction.channelId));  // delete stick message
     stickyMessages.delete(interaction.channelId);  // update map
     // remove from database
     pgClient.query(`DELETE FROM StickyMessages WHERE channel_id = $1 ;`, [interaction.channelId]);
@@ -166,26 +181,37 @@ async function anon(interaction) {
     await interaction.reply({content: "Sent anonymous message.", ephemeral: true});
 }
 
+async function assignRole(interaction, roleId) {
+    interaction.member.roles.add(roleId);
+    await interaction.reply({content: "Role assigned successfully.", ephemeral: true});
+}
+
 abClient.on(Events.ClientReady, async () =>
 {
     console.log(`Logged in as ${abClient.user.username}`);
-    abClient.user.setPresence({ activities: [{ name: '/help' }], status: 'online' });
+    abClient.user.setPresence({activities: [{name: 'League of Legends <:league_L:1099039563428671488>'}], status: 'online'});
 });
 
 abClient.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    let command = commandsMap.get(interaction.commandName);
-	if (!command) {
-		console.error(`No command matching ${interaction.commandName} was found.`);
-		return;
-	}
+    // console.log(interaction);
+    let interactionHandler = null;
+    if (interaction.isChatInputCommand()) {
+        interactionHandler = commandsMap.get(interaction.commandName);
+    }
+    else if (interaction.isButton()) {
+        interactionHandler = buttonsMap.get(interaction.customId);
+    }    
+    if (!interactionHandler) {
+        console.error(`No interaction handler found:\n${interaction}`);
+        return;
+    }
     try {
-		await command(interaction).catch(err => console.error(err.stack));
-	} 
+        await interactionHandler(interaction).catch(err => console.error(err.stack));
+    }
     catch (error) {
-		console.error(error);
-		await interaction.reply({ content: 'There was an error while executing this command.', ephemeral: true });
-	}
+        console.error(error);
+        await interaction.reply({content: 'There was an error during execution.', ephemeral: true});
+    }
 });
 
 abClient.on(Events.MessageCreate, async (message) =>
@@ -242,14 +268,23 @@ abClient.on(Events.MessageCreate, async (message) =>
     if (stickyMessages.has(message.channelId) && !stickyLock.has(message.channelId))
     {
         stickyLock.add(message.channelId)
-        message.channel.messages.delete(stickyMessages.get(message.channelId)[0]).catch(err => console.error(err.stack));
-        message.channel.send(stickyHeader + stickyMessages.get(message.channelId)[1])
-        .then(sentMessage => {
-            stickyMessages.get(message.channelId)[0] = sentMessage.id;
-            pgClient.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [sentMessage.id, message.channelId]).catch(err => console.error(err.stack));
-        })  // update map and database with new message id
-        .catch(err => console.error(err.stack))
-        .finally(() => stickyLock.delete(message.channelId));
+        message.channel.messages.fetch(stickyMessages.get(message.channelId)).then(stickyMessage => {
+            stickyMessage.delete().catch(err => console.error(err.stack));
+            message.channel.send({
+                content: stickyMessage.content,
+                embeds: stickyMessage.embeds,
+                components: stickyMessage.components,
+                attachments: stickyMessage.attachments,
+                stickers: stickyMessage.stickers,
+            })
+            .then(stickyMessage => {
+                // if (message.channelId === '747426244773281884' || message.channelId === '1073408805666299974') stickyMessage.react('<:unbenched:801499706625622046>');
+                stickyMessages.set(message.channelId, stickyMessage.id);
+                pgClient.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [stickyMessage.id, message.channelId]).catch(err => console.error(err.stack));
+            })  // update map and database with new message id
+            .catch(err => console.error(err.stack))
+            .finally(() => stickyLock.delete(message.channelId));
+        }).catch(err => console.error(err.stack));
     }
 
     // talk    
@@ -259,6 +294,7 @@ abClient.on(Events.MessageCreate, async (message) =>
 
 abClient.on(Events.MessageReactionAdd, async (reaction, user) => {
     // console.log(reaction)  // debug
+    if (user.id === abId) return;
     if (reaction.emoji.name === '⬇️' || reaction.emoji.name === '⬆️') {
         doMessageVote(reaction.message, user.id, reaction.emoji.name);
     }

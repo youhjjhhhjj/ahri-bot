@@ -26,8 +26,17 @@ commandsMap.set(commands.bonk.name, moderatorBonk);
 
 const { buttons } = require('./buttons.js');
 const buttonsMap = new Collection();
-buttonsMap.set(buttons.getArtistRole.data.custom_id, async (interaction) => assignRole(interaction, '1191146819749695568'));
-buttonsMap.set(buttons.getModderRole.data.custom_id, async (interaction) => assignRole(interaction, '824039891120816188'));
+buttonsMap.set(buttons.getArtistRole.data.custom_id, async (interaction) => {
+    interaction.member.roles.add('1191146819749695568');
+    console.log(`${interaction.user.tag} self-assigned a role`);
+    await interaction.reply({content: "Role assigned successfully.", ephemeral: true});
+});
+buttonsMap.set(buttons.getModderRole.data.custom_id, async (interaction) => {
+    let modChannel = abClient.channels.cache.get(modChannelId);
+    if(!modChannel) return console.log("Failed to find channel");
+    modChannel.send(`${interaction.user.toString()} has requested Modder role.`);
+    await interaction.reply({content: "Role request submitted.", ephemeral: true});
+});
 
 const stickyHeader = "__**Stickied Message:**__\n";
 
@@ -181,15 +190,10 @@ async function anon(interaction) {
     await interaction.reply({content: "Sent anonymous message.", ephemeral: true});
 }
 
-async function assignRole(interaction, roleId) {
-    interaction.member.roles.add(roleId);
-    await interaction.reply({content: "Role assigned successfully.", ephemeral: true});
-}
-
 abClient.on(Events.ClientReady, async () =>
 {
     console.log(`Logged in as ${abClient.user.username}`);
-    abClient.user.setPresence({activities: [{name: 'League of Legends <:league_L:1099039563428671488>'}], status: 'online'});
+    abClient.user.setPresence({activities: [{name: 'League of Legends'}], status: 'online'});
 });
 
 abClient.on(Events.InteractionCreate, async (interaction) => {

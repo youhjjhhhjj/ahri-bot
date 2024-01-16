@@ -47,8 +47,10 @@ async function doVoteBonk(member, timestamp) {
 
 async function moderatorBonk(interaction) {
     let member = interaction.options.getMember('member');
+    userBonks.set(member.id, Date.now());
     bonk(member, 15);
     abClient.channels.cache.get(modChannelId).send(`${member.user.toString()} has been bonked for 15 minutes by ${interaction.user.tag}.`);
+    interaction.channel.send(`${member.user.tag} has been sent to horny jail.`).then((message) => message.react('<:unbenched:801499706625622046>'));
     abClient.channels.cache.get('1139191006890299463').send(`${member.user.toString()} has been bonked for 15 minutes by a moderator.`);
     await interaction.reply({content: "Successfully bonked user.", ephemeral: true});
 }
@@ -59,7 +61,7 @@ async function timeout(interaction) {
     let reason = interaction.options.getString('reason');
     await member.timeout(1000 * 60 * duration);
     abClient.channels.cache.get(modChannelId).send(`${member.user.toString()} has been timed out for ${duration} minutes by ${interaction.user.tag}. \nReason: ${reason}`);
-    interaction.channel.send(`${member.user.tag} has been timed out for ${duration} minutes by a moderator.`);
+    interaction.channel.send(`${member.user.tag} has been timed out for ${duration} minutes by a moderator.`).then((message) => message.react('<:unbenched:801499706625622046>'));
     await interaction.reply({content: "Successfully timed out user.", ephemeral: true});
 }
 
@@ -72,7 +74,7 @@ async function deleteMessage(interaction) {
         return;
     });
     abClient.channels.cache.get(modChannelId).send(`A message by ${message.author.toString()} in ${interaction.channel.toString()} has been deleted by ${interaction.user.tag}. \nReason: ${reason}`);
-    interaction.channel.send(`A message has been deleted by a moderator.`);
+    interaction.channel.send(`A message has been deleted by a moderator.`).then((message) => message.react('<:unbenched:801499706625622046>'));
     await interaction.reply({content: "Successfully deleted message.", ephemeral: true});
 }
 

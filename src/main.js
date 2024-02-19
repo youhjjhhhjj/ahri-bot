@@ -90,7 +90,7 @@ http.createServer(async function(req, res) {
 
 
 async function formatPrompt(message) {
-    let prompt = `@${message.author.username}: ${message.cleanContent.trim()}\n"@Ahri Bot: `;
+    let prompt = `@${message.author.username}: ${message.cleanContent.trim()}\n@Ahri Bot: `;
     if (message.reference !== null) {
         let replyMessage = await message.fetchReference();
         prompt = `${replyMessage.author.username}: ${replyMessage.content}\n` + prompt;
@@ -99,21 +99,28 @@ async function formatPrompt(message) {
 }
 
 async function talk(prompt) {
+    // console.log(prompt);
     return new Promise((resolve, reject) => {
         var postData = JSON.stringify({
-            'prompt': prompt,
-            'max_tokens': 200
-        });    
+            "contents": [{
+                "parts":[{
+                    "text": prompt
+                }]
+            }],
+            "safetySettings": [{
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE"
+            }]
+        });
         var options = {
-            hostname: "api.cohere.ai",
-            path: "/v1/generate",
+            hostname: "generativelanguage.googleapis.com",
+            path: "/v1beta/models/gemini-pro:generateContent?key=AIzaSyCVDWUmuyRt5D-zx8zymZiVja8GQ1flj2k",
             method: 'POST',
             headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': "Bearer RQFHrtyLOClxW0SHEKYokn6UBUBlefpeeG7MAzqm"
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
             }
-        };    
+        };   
         let response = []    ;
         var req = https.request(options, (res) => {      
             if (res.statusCode < 200 || res.statusCode > 299) {
@@ -125,9 +132,7 @@ async function talk(prompt) {
                 response.push(d);
             });
             res.on('end', (d) => {
-                let reply = JSON.parse(Buffer.concat(response).toString().trim())['generations'][0]['text'];
-                // let length = Math.max(reply.lastIndexOf('.'), reply.lastIndexOf('?'), reply.lastIndexOf('!'))
-                // if (length > -1) reply = reply.slice(0, length + 1)
+                let reply = JSON.parse(Buffer.concat(response).toString().trim())["candidates"][0]["content"]["parts"][0]["text"];
                 resolve(reply);
                 return;
             })

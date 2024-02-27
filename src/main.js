@@ -64,8 +64,8 @@ pgClient
 
 // populate stick messages
 const stickyMessages = new Map();  // channelId: messageId
-// CREATE TABLE StickyMessages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) UNIQUE ) ;
-pgClient.query(`SELECT * FROM StickyMessages`).then(data => {
+// CREATE TABLE sticky_messages ( channel_id VARCHAR(255) PRIMARY KEY, message_id VARCHAR(255) ) ;
+pgClient.query(`SELECT * FROM sticky_messages`).then(data => {
     data.rows.forEach(row => {
         stickyMessages.set(row['channel_id'], row['message_id']);
     })
@@ -99,7 +99,7 @@ async function formatPrompt(message) {
 }
 
 async function talk(prompt) {
-    // console.log(prompt);
+    console.log(prompt);
     return new Promise((resolve, reject) => {
         var postData = JSON.stringify({
             "contents": [{
@@ -132,15 +132,22 @@ async function talk(prompt) {
                 response.push(d);
             });
             res.on('end', (d) => {
-                let reply = JSON.parse(Buffer.concat(response).toString().trim())["candidates"][0]["content"]["parts"][0]["text"];
-                resolve(reply);
-                return;
+                try {
+                    let reply = JSON.parse(Buffer.concat(response).toString().trim())["candidates"][0]["content"]["parts"][0]["text"];
+                    console.log(reply);
+                    resolve(reply);
+                    return;
+                }
+                catch (e) {
+                    console.log(JSON.stringify(JSON.parse(Buffer.concat(response).toString().trim())))
+                    console.error(e);
+                    reject();
+                }
             })
-        });    
-        
+        });        
         req.on('error', (e) => {
             console.error(e);
-            reject("Ahri Bot broke.");
+            reject();
         });    
         req.write(postData);
         req.end();
@@ -164,7 +171,7 @@ async function stick(interaction) {
         stickyMessages.set(stickyMessage.channelId, stickyMessage.id);  // update map with message id
         message.channel.messages.delete(messageId);  // delete original message
         // add to database
-        pgClient.query(`INSERT INTO StickyMessages VALUES ( $1, $2 ) ;`, [stickyMessage.channelId, stickyMessage.id]).catch(err => console.error(err.stack));
+        pgClient.query(`INSERT INTO sticky_messages VALUES ( $1, $2 ) ;`, [stickyMessage.channelId, stickyMessage.id]).catch(err => console.error(err.stack));
     })
     .catch(err => console.error(err.stack));
     await interaction.reply({content: "Successfully sticked message.", ephemeral: true});
@@ -175,7 +182,7 @@ async function unstick(interaction) {
     channel.messages.delete(stickyMessages.get(interaction.channelId));  // delete stick message
     stickyMessages.delete(interaction.channelId);  // update map
     // remove from database
-    pgClient.query(`DELETE FROM StickyMessages WHERE channel_id = $1 ;`, [interaction.channelId]);
+    pgClient.query(`DELETE FROM sticky_messages WHERE channel_id = $1 ;`, [interaction.channelId]);
     await interaction.reply({content: "Successfully unsticked message.", ephemeral: true});
 }
 
@@ -236,15 +243,15 @@ abClient.on(Events.MessageCreate, async (message) =>
             let contents = message.content.trim();
             let debugChannel = abClient.channels.cache.get(debugChannelId);
             if(!debugChannel) return console.log("Failed to find channel");
-            debugChannel.send(`${message.author.tag}: ${message.content}`);
-            let response = "Unrecognized command.";
-            if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
-            else if (!isNaN(contents)) response = await registerVote(debugChannel, message.author.id, message.author.tag, contents);
-            else if (contents.toLowerCase() === "use credit") response = await useCredit(message.author.id, message.author.tag);
-            else if (contents.toLowerCase() === "check credit") response = await checkCredit(message.author.id);
-            abClient.users.fetch(message.author.id, false).then((user) => {
-                user.send(response);
-            });
+            // debugChannel.send(`${message.author.tag}: ${message.content}`);
+            formatPrompt(message).then(prompt => talk(prompt)).then((response) => message.reply(response)).catch(err => message.reply('<:rengar_confusion:1115059377297178696>'));
+            // if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
+            // else if (!isNaN(contents)) response = await registerVote(debugChannel, message.author.id, message.author.tag, contents);
+            // else if (contents.toLowerCase() === "use credit") response = await useCredit(message.author.id, message.author.tag);
+            // else if (contents.toLowerCase() === "check credit") response = await checkCredit(message.author.id);
+            // abClient.users.fetch(message.author.id, false).then((user) => {
+            //     user.send(response);
+            // }); // TODO improve this
         }
         catch (err)
         {
@@ -289,7 +296,7 @@ abClient.on(Events.MessageCreate, async (message) =>
             .then(stickyMessage => {
                 // if (message.channelId === '747426244773281884' || message.channelId === '1073408805666299974') stickyMessage.react('<:unbenched:801499706625622046>');
                 stickyMessages.set(message.channelId, stickyMessage.id);
-                pgClient.query(`UPDATE StickyMessages SET message_id = $1 WHERE channel_id = $2 ;`, [stickyMessage.id, message.channelId]).catch(err => console.error(err.stack));
+                pgClient.query(`UPDATE sticky_messages SET message_id = $1 WHERE channel_id = $2 ;`, [stickyMessage.id, message.channelId]).catch(err => console.error(err.stack));
             })  // update map and database with new message id
             .catch(err => console.error(err.stack))
             .finally(() => stickyLock.delete(message.channelId));

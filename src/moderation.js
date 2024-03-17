@@ -13,7 +13,7 @@ async function doMessageVote(message, voter_id, vote) {
     let messageVote = messageVotes.get(message.id);
     messageVote[vote].add(voter_id);
     if (messageVote['⬇️'].size - messageVote['⬆️'].size >= 5) {
-        let num_mins = message.createdTimestamp - userTimeouts.get(message.author.id) < 1000 * 60 * 60 ? 30 : 10;  // if less than an hour from previous timeout, set 30 mins instead of 10
+        let num_mins = message.createdTimestamp - userTimeouts.get(message.author.id) < 1000 * 60 * 60 ? 30 : 15;  // if less than an hour from previous timeout, set 30 mins instead of 15
         userTimeouts.set(message.author.id, Date.now());
         if (staffIds.has(message.author.id)) message.reply("Shut up mod.");
         else if (message.webhookId) message.reply("Shut up ... server?");

@@ -90,41 +90,36 @@ http.createServer(async function(req, res) {
 
 
 async function formatPrompt(message) {
-    let prompt = `@${message.author.username}: ${message.cleanContent.trim()}\n@Ahri Bot: `;
+    let prompt = `${message.author.username}: ${message.cleanContent.trim()}`;
     if (message.reference !== null) {
         let replyMessage = await message.fetchReference();
-        prompt = `${replyMessage.author.username}: ${replyMessage.content}\n` + prompt;
+        prompt = `${replyMessage.author.username.replace("Ahri Bot", "Ahri")}: ${replyMessage.content}\n` + prompt;
     }
-    return prompt
+    return `Below is an instruction that describes a task. Write a response that appropriately completes the request.\n### Instruction:\nGenerate how Ahri would respond to this chat.\n${prompt}\n### Response:\nAhri: `;
 }
 
 async function talk(prompt) {
     console.log(prompt);
     return new Promise((resolve, reject) => {
         var postData = JSON.stringify({
-            "contents": [{
-                "parts":[{
-                    "text": prompt
-                }]
-            }],
-            "safetySettings": [{
-                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_NONE"
-            }]
+            "model": "undi95/toppy-m-7b:free",
+            "max_tokens": 256,
+            "prompt": prompt,
         });
         var options = {
-            hostname: "generativelanguage.googleapis.com",
-            path: "/v1beta/models/gemini-pro:generateContent?key=AIzaSyCVDWUmuyRt5D-zx8zymZiVja8GQ1flj2k",
+            hostname: "openrouter.ai",
+            path: "/api/v1/chat/completions",
             method: 'POST',
             headers: {
                   'Accept': 'application/json',
-                  'Content-Type': 'application/json'
+                  'Content-Type': 'application/json',
+                  'Authorization': '',
             }
-        };   
+        }; 
         let response = []    ;
         var req = https.request(options, (res) => {      
             if (res.statusCode < 200 || res.statusCode > 299) {
-                // console.log(res)
+                console.error(res.statusCode, res.headers);
                 reject();
                 return;
             }  
@@ -132,8 +127,9 @@ async function talk(prompt) {
                 response.push(d);
             });
             res.on('end', (d) => {
+                // console.log(JSON.stringify(JSON.parse(Buffer.concat(response).toString().trim())))
                 try {
-                    let reply = JSON.parse(Buffer.concat(response).toString().trim())["candidates"][0]["content"]["parts"][0]["text"];
+                    let reply = JSON.parse(Buffer.concat(response).toString().trim())["choices"][0]["text"];
                     console.log(reply);
                     resolve(reply);
                     return;
@@ -166,7 +162,7 @@ async function stick(interaction) {
     }
     messageObject.content = stickyHeader + message.content;
     if (message.channelId === '747426244773281884') messageObject.components.push(new ActionRowBuilder().addComponents(buttons.getArtistRole));
-    else if (message.channelId === '1073408805666299974') messageObject.components.push(new ActionRowBuilder().addComponents(buttons.getModderRole));
+    // else if (message.channelId === '1073408805666299974') messageObject.components.push(new ActionRowBuilder().addComponents(buttons.getModderRole));
     message.channel.send(messageObject).then((stickyMessage) => {
         stickyMessages.set(stickyMessage.channelId, stickyMessage.id);  // update map with message id
         message.channel.messages.delete(messageId);  // delete original message

@@ -7,7 +7,7 @@ var http = require('http');
 const { ActionRowBuilder, Collection, Events } = require('discord.js');
 
 // importing from other files
-const { abId, serverId, debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient } = require('./globals.js');
+const { abId, serverId, debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient, secrets } = require('./globals.js');
 const { doMessageVote, doVoteBonk, moderatorBonk, timeout, deleteMessage } = require('./moderation.js');
 const { receiveDonation, registerVote, verifyUser, startCampaign, endCampaign, checkCredit, useCredit } = require('./campaign/campaign.js');
 
@@ -44,17 +44,7 @@ const anonUsers = new Collection();
 const anonMessages = new Collection();
 
 // discord login
-let _token = "";
-try {
-    // local login
-    let { token } = require('./token.json');
-    _token = token;
-}
-catch (error) {
-    // cloud login
-    _token = process.env.DISCORD_TOKEN;
-}
-abClient.login(_token);
+abClient.login(secrets.discord_token);
 
 // connect to database
 pgClient
@@ -113,7 +103,7 @@ async function talk(prompt) {
             headers: {
                   'Accept': 'application/json',
                   'Content-Type': 'application/json',
-                  'Authorization': '',
+                  'Authorization': secrets.api_key_llm,
             }
         }; 
         let response = []    ;

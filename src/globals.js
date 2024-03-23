@@ -2,6 +2,12 @@
 
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 
+const secrets = require('../secrets.json');
+
+for (const secret in ["discord_token", "database_url", "api_key_llm"]) {
+  if (!(secret in secrets)) secrets[secret] = process.env[secret.toUpperCase()];
+}
+
 const abId = '993911649511690330'
 const serverId = '747424654615904337';
 const debugChannelId = '994038938035556444';
@@ -14,12 +20,11 @@ const vstaffIds = new Set();
 const abClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessageReactions], partials: [Partials.Channel, Partials.Message, Partials.GuildMember], allowedMentions: { parse: ['users'] } });
 
 const pg = require('pg');
-const _db = process.env.DATABASE_URL || "";  // insert local database URL
 const pgClient = new pg.Pool({
-  connectionString: _db,
+  connectionString: secrets.database_url,
   ssl: {
     rejectUnauthorized: false
   }
 });
 
-module.exports = { abId, serverId, debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient };
+module.exports = { abId, serverId, debugChannelId, modChannelId, protectedChannelIds, staffIds, vstaffIds, abClient, pgClient, secrets };

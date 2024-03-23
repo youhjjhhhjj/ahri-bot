@@ -90,16 +90,16 @@ http.createServer(async function(req, res) {
 
 
 async function formatPrompt(message) {
-    let prompt = `${message.author.username}: ${message.cleanContent.trim()}`;
+    let prompt = `${message.author.username}: "${message.cleanContent.trim()}"`;
     if (message.reference !== null) {
         let replyMessage = await message.fetchReference();
-        prompt = `${replyMessage.author.username.replace("Ahri Bot", "Ahri")}: ${replyMessage.content}\n` + prompt;
+        prompt = `${replyMessage.author.username.replace("Ahri Bot", "Ahri")}: "${replyMessage.content}"\n` + prompt;
     }
-    return `Below is an instruction that describes a task. Write a response that appropriately completes the request.\n### Instruction:\nGenerate how Ahri would respond to this chat.\n${prompt}\n### Response:\nAhri: `;
+    return `Below is an instruction that describes a task. Write a response that appropriately completes the request.\n### Instruction:\nGenerate how Ahri would respond to this chat.\n${prompt}\n### Response:\nAhri: "`;
 }
 
 async function talk(prompt) {
-    console.log(prompt);
+    // console.log(prompt);
     return new Promise((resolve, reject) => {
         var postData = JSON.stringify({
             "model": "undi95/toppy-m-7b:free",
@@ -129,14 +129,13 @@ async function talk(prompt) {
             res.on('end', (d) => {
                 // console.log(JSON.stringify(JSON.parse(Buffer.concat(response).toString().trim())))
                 try {
-                    let reply = JSON.parse(Buffer.concat(response).toString().trim())["choices"][0]["text"];
-                    console.log(reply);
+                    let reply = JSON.parse(Buffer.concat(response).toString().trim())["choices"][0]["text"].split('"')[0];
+                    // console.log(reply);
                     resolve(reply);
                     return;
                 }
                 catch (e) {
-                    console.log(JSON.stringify(JSON.parse(Buffer.concat(response).toString().trim())))
-                    console.error(e);
+                    console.error(JSON.stringify(JSON.parse(Buffer.concat(response).toString().trim())))
                     reject();
                 }
             })
@@ -198,8 +197,7 @@ async function anon(interaction) {
     await interaction.reply({content: "Sent anonymous message.", ephemeral: true});
 }
 
-abClient.on(Events.ClientReady, async () =>
-{
+abClient.on(Events.ClientReady, async () => {
     console.log(`Logged in as ${abClient.user.username}`);
     abClient.user.setPresence({activities: [{name: 'League of Legends'}], status: 'online'});
 });
@@ -226,8 +224,7 @@ abClient.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
-abClient.on(Events.MessageCreate, async (message) =>
-{
+abClient.on(Events.MessageCreate, async (message) => {
     if(message.author.bot || message.webhookId) return;
 
     // DMs
@@ -236,9 +233,9 @@ abClient.on(Events.MessageCreate, async (message) =>
     {
         console.log(`${message.author.tag}: ${message.content}`);
         try {
-            let contents = message.content.trim();
-            let debugChannel = abClient.channels.cache.get(debugChannelId);
-            if(!debugChannel) return console.log("Failed to find channel");
+            // let contents = message.content.trim();
+            // let debugChannel = abClient.channels.cache.get(debugChannelId);
+            // if(!debugChannel) return console.log("Failed to find channel");
             // debugChannel.send(`${message.author.tag}: ${message.content}`);
             formatPrompt(message).then(prompt => talk(prompt)).then((response) => message.reply(response)).catch(err => message.reply('<:rengar_confusion:1115059377297178696>'));
             // if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(contents)) response = await verifyUser(debugChannel, contents.toLowerCase(), message.author.id, message.author.tag);
@@ -277,8 +274,7 @@ abClient.on(Events.MessageCreate, async (message) =>
     }
 
     // sticky message
-    if (stickyMessages.has(message.channelId) && !stickyLock.has(message.channelId))
-    {
+    if (stickyMessages.has(message.channelId) && !stickyLock.has(message.channelId)) {
         stickyLock.add(message.channelId)
         message.channel.messages.fetch(stickyMessages.get(message.channelId)).then(stickyMessage => {
             stickyMessage.delete().catch(err => console.error(err.stack));
@@ -321,4 +317,20 @@ abClient.on(Events.MessageReactionAdd, async (reaction, user) => {
         doVoteBonk(member, reaction.message.createdTimestamp);
     }
     else if (reaction.emoji.name === '🆓' && protectedChannelIds.has(reaction.message.channelId)) reaction.remove();
+});
+
+
+abClient.on(Events.MessageDelete, async (message) => {
+    if (message.author.bot || Date.now() - message.createdTimestamp > 1000 * 60) return;  // More than 1 minute
+    let debugChannel = abClient.channels.cache.get(debugChannelId);
+    if(!debugChannel) return console.log("Failed to find channel");
+    debugChannel.send(`A recent message by ${message.author} was deleted in ${message.channel}.`);
+});
+
+
+abClient.on(Events.MessageUpdate, async (message) => {
+    if (message.author.bot || Date.now() - message.createdTimestamp < 1000 * 60) return;  // Less than 1 minute
+    let debugChannel = abClient.channels.cache.get(debugChannelId);
+    if(!debugChannel) return console.log("Failed to find channel");
+    debugChannel.send(`An old message by ${message.author} was edited in ${message.channel}: <${message.url}>.`);
 });

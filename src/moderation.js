@@ -34,7 +34,12 @@ async function doMessageVote(message, voter_id, vote) {
 async function bonk(member, duration) {
     member.roles.add('1142589211392872620');
     setTimeout(async () => {
-        member.roles.remove('1142589211392872620').catch(err => console.error(err.stack));
+        try {
+            await member.roles.remove('1142589211392872620');
+        }
+        catch (err) {
+            console.error(err.stack);
+        }
     }, 1000 * 60 * duration);
 }
 

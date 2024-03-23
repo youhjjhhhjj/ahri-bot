@@ -11,7 +11,7 @@ const protectedChannelIds = new Set(['747425787371716618', '1113124813138051242'
 const staffIds = new Set(['603962299895775252', '328629962162700289', '534061021304717312', '447070898868977665']);
 const vstaffIds = new Set();
 
-const abClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessageReactions], partials: [Partials.Channel], allowedMentions: { parse: ['users'] } });
+const abClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessageReactions], partials: [Partials.Channel, Partials.Message, Partials.GuildMember], allowedMentions: { parse: ['users'] } });
 
 const pg = require('pg');
 const _db = process.env.DATABASE_URL || "";  // insert local database URL
